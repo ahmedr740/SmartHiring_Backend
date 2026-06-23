@@ -64,7 +64,7 @@ public class ShiftService {
                     boolean isAssignedToWorker =
                             shift.getAssignedWorker() != null
                                     && shift.getAssignedWorker().getId().equals(currentUser.getId())
-                                    && !"CANCELLED".equalsIgnoreCase(status);
+                                    && List.of("FILLED", "IN_PROGRESS", "COMPLETED").contains(status.toUpperCase());
                     return isVisibleOpenShift || isAssignedToWorker;
                 })
                 .toList();
