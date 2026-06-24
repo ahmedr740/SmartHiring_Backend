@@ -7,6 +7,7 @@ import java.util.List;
 
 public interface ShiftRepository extends JpaRepository<Shift, Long> {
     List<Shift> findAllByManagerId(Long managerId);
+    List<Shift> findAllByStatusIgnoreCase(String status);
     long countByStatusIgnoreCase(String status);
     long countByAssignedWorkerIdAndStatusIgnoreCase(Long workerId, String status);
     long countByManagerIdAndStatusIgnoreCase(Long managerId, String status);
