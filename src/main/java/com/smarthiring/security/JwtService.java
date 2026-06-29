@@ -21,8 +21,11 @@ public class JwtService {
     private final SecretKey secretKey;
 
     public JwtService(
-            @Value("${app.jwt.secret:smarthiring-super-secret-key-smarthiring-super-secret-key-2026}") String secret
+            @Value("${app.jwt.secret:}") String secret
     ) {
+        if (secret == null || secret.length() < 32) {
+            throw new IllegalStateException("JWT_SECRET must be configured and at least 32 characters long");
+        }
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 

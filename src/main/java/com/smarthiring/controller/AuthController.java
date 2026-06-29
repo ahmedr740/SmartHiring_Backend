@@ -6,9 +6,12 @@ import com.smarthiring.repository.UserRepository;
 import com.smarthiring.security.CustomUserDetailsService;
 import com.smarthiring.security.JwtService;
 import com.smarthiring.service.UserService;
+import com.smarthiring.repository.AiMatchCacheRepository;
 import com.smarthiring.repository.ApplicationRepository;
+import com.smarthiring.repository.LikedJobRepository;
 import com.smarthiring.repository.ShiftRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -36,7 +39,12 @@ public class AuthController {
     private final JwtService jwtService;
     private final CustomUserDetailsService customUserDetailsService;
     private final ApplicationRepository applicationRepository;
+    private final LikedJobRepository likedJobRepository;
+    private final AiMatchCacheRepository aiMatchCacheRepository;
     private final ShiftRepository shiftRepository;
+    private final boolean demoToolsEnabled;
+    private final String seedAdminEmail;
+    private final String seedAdminPassword;
 
     public AuthController(
             UserRepository userRepository,
@@ -45,7 +53,12 @@ public class AuthController {
             JwtService jwtService,
             CustomUserDetailsService customUserDetailsService,
             ApplicationRepository applicationRepository,
-            ShiftRepository shiftRepository
+            LikedJobRepository likedJobRepository,
+            AiMatchCacheRepository aiMatchCacheRepository,
+            ShiftRepository shiftRepository,
+            @Value("${app.demo-tools-enabled:false}") boolean demoToolsEnabled,
+            @Value("${app.admin.seed.email:}") String seedAdminEmail,
+            @Value("${app.admin.seed.password:}") String seedAdminPassword
     ) {
         this.userRepository = userRepository;
         this.userService = userService;
@@ -53,7 +66,12 @@ public class AuthController {
         this.jwtService = jwtService;
         this.customUserDetailsService = customUserDetailsService;
         this.applicationRepository = applicationRepository;
+        this.likedJobRepository = likedJobRepository;
+        this.aiMatchCacheRepository = aiMatchCacheRepository;
         this.shiftRepository = shiftRepository;
+        this.demoToolsEnabled = demoToolsEnabled;
+        this.seedAdminEmail = seedAdminEmail;
+        this.seedAdminPassword = seedAdminPassword;
     }
 
     @PostMapping("/login")
@@ -99,9 +117,6 @@ public class AuthController {
             }
 
         } else {
-            if ("admin@smarthiring.com".equals(normalizedEmail) && "admin123".equals(rawPassword)) {
-                return bootstrapAdmin();
-            }
             throw new ResponseStatusException(UNAUTHORIZED, "User not found");
         }
     }
@@ -117,12 +132,15 @@ public class AuthController {
 
     @PostMapping("/bootstrap-admin")
     public LoginResponse bootstrapAdmin() {
-        User admin = userRepository.findByEmail("admin@smarthiring.com")
+        requireDemoTools();
+        requireSeedCredentials();
+
+        User admin = userRepository.findByEmailIgnoreCase(seedAdminEmail)
                 .orElseGet(User::new);
 
         admin.setName("Platform Admin");
-        admin.setEmail("admin@smarthiring.com");
-        admin.setPassword(passwordEncoder.encode("admin123"));
+        admin.setEmail(seedAdminEmail.trim().toLowerCase());
+        admin.setPassword(passwordEncoder.encode(seedAdminPassword));
         admin.setRole("ADMIN");
         admin.setStatus("ACTIVE");
         admin.setRating(admin.getRating() == null ? 0d : admin.getRating());
@@ -147,14 +165,19 @@ public class AuthController {
     @PostMapping("/reset-demo-data")
     @Transactional
     public LoginResponse resetDemoData() {
+        requireDemoTools();
+        requireSeedCredentials();
+
         applicationRepository.deleteAll();
+        likedJobRepository.deleteAll();
+        aiMatchCacheRepository.deleteAll();
         shiftRepository.deleteAll();
         userRepository.deleteAll();
 
         User admin = new User();
         admin.setName("Platform Admin");
-        admin.setEmail("admin@smarthiring.com");
-        admin.setPassword(passwordEncoder.encode("admin123"));
+        admin.setEmail(seedAdminEmail.trim().toLowerCase());
+        admin.setPassword(passwordEncoder.encode(seedAdminPassword));
         admin.setRole("ADMIN");
         admin.setStatus("ACTIVE");
         admin.setRating(0d);
@@ -200,5 +223,17 @@ public class AuthController {
         }
 
         return email.trim().toLowerCase();
+    }
+
+    private void requireDemoTools() {
+        if (!demoToolsEnabled) {
+            throw new ResponseStatusException(BAD_REQUEST, "Demo maintenance tools are disabled");
+        }
+    }
+
+    private void requireSeedCredentials() {
+        if (seedAdminEmail == null || seedAdminEmail.isBlank() || seedAdminPassword == null || seedAdminPassword.length() < 8) {
+            throw new ResponseStatusException(BAD_REQUEST, "Admin seed credentials are not configured");
+        }
     }
 }
