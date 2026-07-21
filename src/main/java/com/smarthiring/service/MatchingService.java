@@ -26,8 +26,9 @@ public class MatchingService {
 
     private static final String SYSTEM_PROMPT = """
             You rank restaurant staffing matches for Smart Hiring.
-            Use only the supplied shift, worker, manager, rating, location, skill, and completion data.
+            Use only the supplied shift requirements, worker skills, broad location, availability, rating, and completion data.
             Do not infer protected traits. Do not mention private data that is not supplied.
+            This score is advisory and must not be the sole basis for an employment decision.
             Return practical, concise hiring guidance for a restaurant shift marketplace.
             """;
 
@@ -169,7 +170,7 @@ public class MatchingService {
                 null,
                 fallbackScore,
                 labelForScore(fallbackScore),
-                "Local AI is unavailable, using built-in match score.",
+                "AI matching is unavailable, using the built-in match score.",
                 List.of(fallbackScore >= 60 ? "Profile and shift details show a reasonable fit" : "Some profile details may still need review"),
                 List.of("No AI explanation was generated for this match"),
                 action,
@@ -181,13 +182,12 @@ public class MatchingService {
     private String workerShiftPrompt(User worker, Shift shift) {
         return """
                 Rank this shift for the worker.
-                Worker: name=%s; skills=%s; location=%s; availability=%s; rating=%.1f; completedShifts=%d.
-                Shift: title=%s; role=%s; date=%s; time=%s-%s; location=%s; pay=%s; manager=%s.
+                Worker profile: skills=%s; broadLocation=%s; availability=%s; rating=%.1f; completedShifts=%d.
+                Shift requirements: title=%s; role=%s; date=%s; time=%s-%s; broadLocation=%s; pay=%s.
                 Local fallback score=%d.
                 """.formatted(
-                safe(worker.getName()),
                 safe(worker.getSkills()),
-                safe(worker.getLocation()),
+                broadLocation(worker.getLocation()),
                 safe(worker.getAvailability()),
                 worker.getRating() == null ? 0d : worker.getRating(),
                 worker.getCompletedShiftsCount() == null ? 0 : worker.getCompletedShiftsCount(),
@@ -196,9 +196,8 @@ public class MatchingService {
                 safe(shift.getDate()),
                 safe(shift.getStartTime()),
                 safe(shift.getEndTime()),
-                safe(shift.getLocation()),
+                broadLocation(shift.getLocation()),
                 shift.getPay() == null ? "unknown" : shift.getPay().toString(),
-                safe(shift.getManager() == null ? null : firstPresent(shift.getManager().getRestaurantName(), shift.getManager().getName())),
                 scoreWorkerShift(worker, shift)
         );
     }
@@ -207,23 +206,21 @@ public class MatchingService {
         User worker = application.getWorker();
         return """
                 Rank this applicant for the manager's shift.
-                Applicant: name=%s; skills=%s; location=%s; availability=%s; rating=%.1f; completedShifts=%d; applicationStatus=%s.
-                Shift: title=%s; role=%s; date=%s; time=%s-%s; location=%s; pay=%s.
+                Applicant profile: skills=%s; broadLocation=%s; availability=%s; rating=%.1f; completedShifts=%d.
+                Shift requirements: title=%s; role=%s; date=%s; time=%s-%s; broadLocation=%s; pay=%s.
                 Local fallback score=%d.
                 """.formatted(
-                safe(worker.getName()),
                 safe(worker.getSkills()),
-                safe(worker.getLocation()),
+                broadLocation(worker.getLocation()),
                 safe(worker.getAvailability()),
                 worker.getRating() == null ? 0d : worker.getRating(),
                 worker.getCompletedShiftsCount() == null ? 0 : worker.getCompletedShiftsCount(),
-                safe(application.getStatus()),
                 safe(shift.getTitle()),
                 safe(shift.getRoleNeeded()),
                 safe(shift.getDate()),
                 safe(shift.getStartTime()),
                 safe(shift.getEndTime()),
-                safe(shift.getLocation()),
+                broadLocation(shift.getLocation()),
                 shift.getPay() == null ? "unknown" : shift.getPay().toString(),
                 scoreWorkerShift(worker, shift)
         );
@@ -260,6 +257,14 @@ public class MatchingService {
 
     private String safe(String value) {
         return value == null || value.isBlank() ? "not provided" : value.trim();
+    }
+
+    private String broadLocation(String value) {
+        if (value == null || value.isBlank()) {
+            return "not provided";
+        }
+        String broad = value.split(",", 2)[0].trim();
+        return broad.substring(0, Math.min(broad.length(), 80));
     }
 
     private String firstPresent(String first, String second) {

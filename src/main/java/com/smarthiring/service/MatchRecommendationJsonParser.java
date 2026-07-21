@@ -51,7 +51,7 @@ final class MatchRecommendationJsonParser {
         recommendation.setAiScore(clampScore(node.path("aiScore").asInt(node.path("score").asInt(fallbackScore))));
         recommendation.setFallbackScore(fallbackScore);
         recommendation.setLabel(cleanText(node.path("label").asText(labelForScore(recommendation.getAiScore()))));
-        recommendation.setExplanation(cleanText(node.path("explanation").asText("Matched using local AI.")));
+        recommendation.setExplanation(cleanText(node.path("explanation").asText("Matched using the configured AI provider.")));
         recommendation.setStrengths(readStringList(node.path("strengths")));
         recommendation.setRisks(readStringList(node.path("risks")));
         recommendation.setRecommendedAction(cleanText(node.path("recommendedAction").asText("Review this match.")));

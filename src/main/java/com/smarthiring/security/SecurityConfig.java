@@ -21,13 +21,16 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RequestRateLimitFilter requestRateLimitFilter;
     private final String allowedOrigins;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
+            RequestRateLimitFilter requestRateLimitFilter,
             @Value("${app.cors.allowed-origins:http://localhost:3000}") String allowedOrigins
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.requestRateLimitFilter = requestRateLimitFilter;
         this.allowedOrigins = allowedOrigins;
     }
 
@@ -50,7 +53,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/login",
-                                "/api/auth/register"
+                                "/api/auth/register",
+                                "/api/health",
+                                "/ws/chat"
                         ).permitAll()
                         .requestMatchers("/api/auth/reset-demo-data", "/api/auth/bootstrap-admin").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
@@ -60,9 +65,14 @@ public class SecurityConfig {
                         .requestMatchers("/api/applications/**").authenticated()
                         .requestMatchers("/api/matches/**").authenticated()
                         .requestMatchers("/api/liked-jobs/**").authenticated()
+                        .requestMatchers("/api/issues/**").authenticated()
+                        .requestMatchers("/api/chats/**").authenticated()
+                        .requestMatchers("/api/payments/**").authenticated()
+                        .requestMatchers("/api/wallet/**").authenticated()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(requestRateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

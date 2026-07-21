@@ -26,15 +26,18 @@ public class ApplicationService {
     private final ApplicationRepository applicationRepository;
     private final UserRepository userRepository;
     private final ShiftRepository shiftRepository;
+    private final NotificationService notificationService;
 
     public ApplicationService(
             ApplicationRepository applicationRepository,
             UserRepository userRepository,
-            ShiftRepository shiftRepository
+            ShiftRepository shiftRepository,
+            NotificationService notificationService
     ) {
         this.applicationRepository = applicationRepository;
         this.userRepository = userRepository;
         this.shiftRepository = shiftRepository;
+        this.notificationService = notificationService;
     }
 
     public Application apply(ApplyRequest request, User currentUser) {
@@ -75,7 +78,19 @@ public class ApplicationService {
         application.setWorker(worker);
         application.setShift(shift);
         application.setStatus("PENDING");
-        return applicationRepository.save(application);
+        Application saved = applicationRepository.save(application);
+        if (shift.getManager() != null) {
+            notificationService.create(
+                    shift.getManager(),
+                    "APPLICATION_RECEIVED",
+                    "New shift application",
+                    "%s applied for %s.".formatted(worker.getName(), shift.getTitle()),
+                    "/manager-home",
+                    true,
+                    "application-received:%d".formatted(saved.getId())
+            );
+        }
+        return saved;
     }
 
     public List<Application> getApplications(User currentUser, Long shiftId) {
@@ -152,7 +167,8 @@ public class ApplicationService {
             for (Application shiftApplication : shiftApplications) {
                 if (!shiftApplication.getId().equals(app.getId()) && !"REJECTED".equalsIgnoreCase(shiftApplication.getStatus())) {
                     shiftApplication.setStatus("REJECTED");
-                    applicationRepository.save(shiftApplication);
+                    Application rejected = applicationRepository.save(shiftApplication);
+                    notifyApplicationStatus(rejected, "REJECTED");
                 }
             }
         }
@@ -172,7 +188,9 @@ public class ApplicationService {
             shiftRepository.save(shift);
         }
 
-        return applicationRepository.save(app);
+        Application saved = applicationRepository.save(app);
+        notifyApplicationStatus(saved, normalizedStatus);
+        return saved;
     }
 
     public Application submitRating(Long applicationId, RatingRequest request, User currentUser) {
@@ -221,6 +239,18 @@ public class ApplicationService {
 
         Application savedApplication = applicationRepository.save(application);
         refreshUserRating(isWorker ? savedApplication.getShift().getManager() : savedApplication.getWorker(), isWorker);
+        User ratedUser = isWorker ? savedApplication.getShift().getManager() : savedApplication.getWorker();
+        if (ratedUser != null) {
+            notificationService.create(
+                    ratedUser,
+                    "RATING_RECEIVED",
+                    "New rating received",
+                    "You received a new rating for %s.".formatted(savedApplication.getShift().getTitle()),
+                    isWorker ? "/manager-home" : "/worker-jobs",
+                    false,
+                    "rating-received:%d:%s".formatted(savedApplication.getId(), isWorker ? "MANAGER" : "WORKER")
+            );
+        }
         return savedApplication;
     }
 
@@ -274,5 +304,25 @@ public class ApplicationService {
                 && shift != null
                 && shift.getManager() != null
                 && shift.getManager().getId().equals(user.getId());
+    }
+
+    private void notifyApplicationStatus(Application application, String status) {
+        if (application == null || application.getWorker() == null
+                || !List.of("ACCEPTED", "REJECTED").contains(status)) {
+            return;
+        }
+        String shiftTitle = application.getShift() == null ? "a shift" : application.getShift().getTitle();
+        boolean accepted = "ACCEPTED".equals(status);
+        notificationService.create(
+                application.getWorker(),
+                "APPLICATION_" + status,
+                accepted ? "Application accepted" : "Application update",
+                accepted
+                        ? "Your application for %s was accepted.".formatted(shiftTitle)
+                        : "Your application for %s was not selected.".formatted(shiftTitle),
+                "/worker-jobs",
+                true,
+                "application-status:%d:%s".formatted(application.getId(), status)
+        );
     }
 }

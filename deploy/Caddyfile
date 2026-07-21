@@ -1,0 +1,47 @@
+{
+    email {$TLS_EMAIL}
+}
+
+{$DOMAIN}, www.{$DOMAIN} {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+    reverse_proxy frontend:80
+}
+
+api.{$DOMAIN} {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+    reverse_proxy backend:8080
+}
+
+automation.{$DOMAIN} {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    @published_webhooks path /webhook/*
+    handle @published_webhooks {
+        reverse_proxy n8n:5678
+    }
+
+    handle {
+        basic_auth {
+            {$N8N_PROXY_USER} {$N8N_PROXY_PASSWORD_HASH}
+        }
+        reverse_proxy n8n:5678
+    }
+}

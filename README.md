@@ -2,6 +2,12 @@
 
 Smart Hiring is a group project for a college software/web development course. The idea behind the project is to help restaurant managers post short-term shifts and let workers apply for flexible jobs more easily.
 
+## AWS Hong Kong deployment
+
+Production packaging for a temporary AWS Lightsail deployment is included in `docker-compose.prod.yml`. It runs the frontend, backend, PostgreSQL, n8n 2.26.8, daily backups, and Caddy HTTPS on one 4 GB instance. Follow [the complete Hong Kong deployment, DeepSeek, testing, backup, and teardown guide](docs/deployment/AWS_LIGHTSAIL_HONG_KONG.md).
+
+The production AI source is `N8N_DEEPSEEK`; local Ollama remains supported as `N8N_OLLAMA`, and deterministic scoring remains available as `FALLBACK`.
+
 ## What The App Does
 
 - workers can register, log in, and apply for shifts
@@ -16,6 +22,26 @@ Smart Hiring is a group project for a college software/web development course. T
 - `staffmatch-frontend/` contains the React frontend
 
 Note: the frontend folder still uses the older `staffmatch` name because we started with that project name early on and kept the folder path to avoid breaking local setup during development.
+
+## Submission Scope
+
+The initial project documents described a React Native mobile app. The current implementation target is now a React JS website, supported by the same Spring Boot and PostgreSQL backend. This website is the official current project direction for the submission, not a temporary replacement.
+
+Essential functions currently covered:
+
+- authentication and role-based access for workers, managers, and admins
+- worker profile, job browsing, liked jobs, applications, and ratings
+- manager shift posting, applicant review, shift lifecycle updates, mock payment checkout, and worker ratings
+- admin manager approval, user moderation, shift/application inspection, and issue report tracking
+- AI/fallback matching for workers and managers
+- accepted-shift chat between managers and workers
+- simple browser notifications while the website is open
+- repeatable demo accounts and demo data for presentation
+
+Near-future enhancements:
+
+- real payment gateway
+- full bilingual interface
 
 ## Tech Stack
 
@@ -45,6 +71,13 @@ Required variables:
 | `DATABASE_PASSWORD` | DB password |
 | `JWT_SECRET` | Signing key for login tokens (32+ characters) |
 
+Windows PowerShell example:
+
+```powershell
+Copy-Item .env.example .env
+# Edit .env and set DATABASE_PASSWORD plus a 32+ character JWT_SECRET.
+```
+
 3. Optional local/admin/settings:
 
 ```bash
@@ -69,6 +102,47 @@ Schema changes live in `src/main/resources/db/migration/` and are applied by Fly
 ./mvnw spring-boot:run
 ```
 
+On Windows PowerShell:
+
+```powershell
+.\mvnw.cmd spring-boot:run
+```
+
+The backend uses port `8080` by default. If that port is already busy, run it on `8081`:
+
+```powershell
+$env:SERVER_PORT='8081'
+.\mvnw.cmd spring-boot:run
+```
+
+### Demo seed data
+
+Demo data is off by default. For a presentation run, turn it on before starting the backend:
+
+```powershell
+$env:DEMO_SEED_ENABLED='true'
+$env:DEMO_SEED_PASSWORD='SmartHiringDemo123!'
+.\mvnw.cmd spring-boot:run
+```
+
+Seeded demo accounts:
+
+| Role | Email | Password |
+|------|-------|----------|
+| Worker | `demo.worker@smarthiring.local` | `SmartHiringDemo123!` |
+| Manager | `demo.manager@smarthiring.local` | `SmartHiringDemo123!` |
+| Admin | `demo.admin@smarthiring.local` | `SmartHiringDemo123!` |
+
+The seed also creates open shifts, pending applications, one completed unpaid shift for ratings/payment, one starter chat conversation, one mock payment record, and one pending manager account for admin review.
+
+### Demo Script
+
+1. Log in as admin and approve/suspend users, inspect shifts/applications, and review issue reports.
+2. Log in as manager and enable browser notifications, create a shift, review applicants, accept a worker, open the accepted-shift chat, move the shift through the lifecycle, complete the mock payment checkout, and rate the worker.
+3. Log in as worker and enable browser notifications, update the profile, browse open jobs, view AI job matches, like/apply to jobs, open accepted-shift chat, view history, submit a manager rating, and submit an issue report.
+4. For browser notifications, keep the website tab open. The app uses the browser Notification API only; it does not use native/background push.
+5. For payment, use the mock checkout. It is demo-only and does not process real money.
+
 ### Frontend
 
 1. Go into the frontend folder:
@@ -83,6 +157,18 @@ cd staffmatch-frontend
 export REACT_APP_API_BASE_URL=http://localhost:8080/api
 ```
 
+On Windows PowerShell:
+
+```powershell
+$env:REACT_APP_API_BASE_URL='http://localhost:8080/api'
+```
+
+If the backend is running on `8081`, use:
+
+```powershell
+$env:REACT_APP_API_BASE_URL='http://localhost:8081/api'
+```
+
 3. Install dependencies and start the app:
 
 ```bash
@@ -90,7 +176,31 @@ npm install
 npm start
 ```
 
+On Windows PowerShell:
+
+```powershell
+npm.cmd install
+npm.cmd start
+```
+
 The frontend runs on `http://localhost:3000` and the backend runs on `http://localhost:8080`.
+
+### Demo readiness checks
+
+Backend:
+
+```powershell
+.\mvnw.cmd test
+```
+
+Frontend:
+
+```powershell
+cd staffmatch-frontend
+npm.cmd run build
+$env:CI='true'
+npm.cmd test -- --watchAll=false --watchman=false
+```
 
 ## Local AI Matching With Ollama (default)
 
@@ -119,6 +229,8 @@ When AI works, match cards show `(AI)` and `source` is `OLLAMA`. If Ollama is of
 ### Optional: n8n + Ollama instead of direct Ollama
 
 If you prefer routing AI through n8n workflows, set `MATCHING_PROVIDER=n8n` and follow `docs/n8n/README.md`.
+
+The n8n package now also includes importable Gmail notification automation and the app includes a persistent notification inbox. See [`docs/n8n/README.md`](docs/n8n/README.md) for the exact Windows setup and workflow import steps.
 
 ## Local AI Matching With n8n + Ollama (optional)
 

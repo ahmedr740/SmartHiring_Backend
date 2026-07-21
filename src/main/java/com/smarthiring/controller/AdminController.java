@@ -4,8 +4,10 @@ import com.smarthiring.model.User;
 import com.smarthiring.model.Shift;
 import com.smarthiring.model.Application;
 import com.smarthiring.repository.ApplicationRepository;
+import com.smarthiring.repository.IssueReportRepository;
 import com.smarthiring.repository.ShiftRepository;
 import com.smarthiring.repository.UserRepository;
+import com.smarthiring.service.NotificationService;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -19,21 +21,26 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @RestController
 @RequestMapping("/api/admin")
-@CrossOrigin(origins = "http://localhost:3000")
 public class AdminController {
 
     private final UserRepository userRepository;
     private final ShiftRepository shiftRepository;
     private final ApplicationRepository applicationRepository;
+    private final IssueReportRepository issueReportRepository;
+    private final NotificationService notificationService;
 
     public AdminController(
             UserRepository userRepository,
             ShiftRepository shiftRepository,
-            ApplicationRepository applicationRepository
+            ApplicationRepository applicationRepository,
+            IssueReportRepository issueReportRepository,
+            NotificationService notificationService
     ) {
         this.userRepository = userRepository;
         this.shiftRepository = shiftRepository;
         this.applicationRepository = applicationRepository;
+        this.issueReportRepository = issueReportRepository;
+        this.notificationService = notificationService;
     }
 
     @GetMapping("/overview")
@@ -55,6 +62,9 @@ public class AdminController {
         response.put("pendingApplications", applicationRepository.countByStatusIgnoreCase("PENDING"));
         response.put("acceptedApplications", applicationRepository.countByStatusIgnoreCase("ACCEPTED"));
         response.put("rejectedApplications", applicationRepository.countByStatusIgnoreCase("REJECTED"));
+        response.put("openIssues", issueReportRepository.countByStatusIgnoreCase("OPEN"));
+        response.put("reviewingIssues", issueReportRepository.countByStatusIgnoreCase("REVIEWING"));
+        response.put("resolvedIssues", issueReportRepository.countByStatusIgnoreCase("RESOLVED"));
         response.put("completedShifts", shifts.stream().filter(shift -> "COMPLETED".equalsIgnoreCase(shift.getStatus())).count());
         response.put(
                 "paidCompletedShifts",
@@ -160,8 +170,23 @@ public class AdminController {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "User not found"));
 
-        user.setStatus(normalizeStatus(request.get("status")));
-        return userRepository.save(user);
+        String previousStatus = user.getStatus();
+        String status = normalizeStatus(request.get("status"));
+        user.setStatus(status);
+        User saved = userRepository.save(user);
+        if (!status.equalsIgnoreCase(previousStatus == null ? "" : previousStatus)) {
+            String destination = "MANAGER".equalsIgnoreCase(saved.getRole()) ? "/manager-home" : "/worker-home";
+            notificationService.create(
+                    saved,
+                    "ACCOUNT_STATUS_CHANGED",
+                    accountStatusTitle(status),
+                    "Your Smart Hiring account status is now %s.".formatted(status.toLowerCase()),
+                    destination,
+                    true,
+                    "account-status:%d:%s".formatted(saved.getId(), status)
+            );
+        }
+        return saved;
     }
 
     @PutMapping("/users/{id}/role")
@@ -232,5 +257,14 @@ public class AdminController {
         }
 
         return normalizedRole;
+    }
+
+    private String accountStatusTitle(String status) {
+        return switch (status) {
+            case "ACTIVE" -> "Account approved";
+            case "REJECTED" -> "Account rejected";
+            case "SUSPENDED" -> "Account suspended";
+            default -> "Account status updated";
+        };
     }
 }

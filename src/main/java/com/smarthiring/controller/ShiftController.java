@@ -3,6 +3,7 @@ package com.smarthiring.controller;
 import com.smarthiring.model.Shift;
 import com.smarthiring.model.User;
 import com.smarthiring.repository.UserRepository;
+import com.smarthiring.service.MockPaymentService;
 import com.smarthiring.service.ShiftService;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -14,14 +15,15 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 @RestController
 @RequestMapping("/api/shifts")
-@CrossOrigin
 public class ShiftController {
 
     private final ShiftService shiftService;
+    private final MockPaymentService mockPaymentService;
     private final UserRepository userRepository;
 
-    public ShiftController(ShiftService shiftService, UserRepository userRepository) {
+    public ShiftController(ShiftService shiftService, MockPaymentService mockPaymentService, UserRepository userRepository) {
         this.shiftService = shiftService;
+        this.mockPaymentService = mockPaymentService;
         this.userRepository = userRepository;
     }
 
@@ -67,7 +69,7 @@ public class ShiftController {
     public Shift markPaid(@PathVariable Long id, Authentication authentication) {
         User currentUser = userRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        return shiftService.markPaid(id, currentUser);
+        return mockPaymentService.startAndConfirm(id, currentUser).getShift();
     }
 
     @DeleteMapping("/{id}")

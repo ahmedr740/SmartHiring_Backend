@@ -1,5 +1,8 @@
 HELP.md
 .env
+.env.production
+backups/
+.m2-local/
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

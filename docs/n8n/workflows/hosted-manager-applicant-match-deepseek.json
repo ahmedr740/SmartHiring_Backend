@@ -1,0 +1,81 @@
+{
+  "name": "Smart Hiring Hosted - Manager Applicant Match (DeepSeek)",
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "headerAuth",
+        "httpMethod": "POST",
+        "path": "staffmatch/manager-applicant-match",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "hosted-manager-webhook",
+      "name": "Manager Match Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "staffmatch-hosted-manager-applicant-match"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nif (!body.systemPrompt || !body.userPrompt) throw new Error('Missing matching prompt');\nif (!Number.isFinite(Number(body.targetId)) || !Number.isFinite(Number(body.fallbackScore))) throw new Error('Invalid matching request');\nreturn items;"
+      },
+      "id": "hosted-manager-validate",
+      "name": "Validate Match Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": \"deepseek-v4-flash\", \"messages\": [ { \"role\": \"system\", \"content\": $json.body.systemPrompt + \"\\nReturn one JSON object only with aiScore, label, explanation, strengths, risks, and recommendedAction. aiScore must be an integer from 0 to 100.\" }, { \"role\": \"user\", \"content\": $json.body.userPrompt } ], \"response_format\": { \"type\": \"json_object\" }, \"thinking\": { \"type\": \"disabled\" }, \"max_tokens\": 500, \"stream\": false } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "hosted-manager-deepseek",
+      "name": "Ask DeepSeek",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $('Manager Match Webhook').first().json.body;\nconst response = $input.first().json;\nconst content = response.choices?.[0]?.message?.content;\nif (typeof content !== 'string' || !content.trim()) throw new Error('DeepSeek returned no JSON content');\nconst cleaned = content.trim().replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '');\nconst parsed = JSON.parse(cleaned);\nconst parsedScore = Number(parsed.aiScore);\nconst candidate = Number.isFinite(parsedScore) ? (parsedScore >= 0 && parsedScore <= 1 ? parsedScore * 100 : parsedScore) : Number(request.fallbackScore);\nconst score = Math.round(Math.max(0, Math.min(100, candidate)));\nconst strings = value => Array.isArray(value) ? value.map(item => String(item).trim()).filter(Boolean).slice(0, 5) : [];\nreturn [{ json: {\n  targetId: Number(request.targetId),\n  aiScore: score,\n  fallbackScore: Number(request.fallbackScore),\n  label: String(parsed.label || (score >= 80 ? 'Strong match' : score >= 60 ? 'Good match' : 'Possible match')),\n  explanation: String(parsed.explanation || 'DeepSeek evaluated the supplied non-identifying applicant and shift details.'),\n  strengths: strings(parsed.strengths),\n  risks: strings(parsed.risks),\n  recommendedAction: String(parsed.recommendedAction || 'Review the application before deciding.'),\n  source: 'N8N_DEEPSEEK'\n} }];"
+      },
+      "id": "hosted-manager-normalize",
+      "name": "Normalize Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "hosted-manager-response",
+      "name": "Return Match",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [960, 0]
+    }
+  ],
+  "connections": {
+    "Manager Match Webhook": { "main": [[{ "node": "Validate Match Request", "type": "main", "index": 0 }]] },
+    "Validate Match Request": { "main": [[{ "node": "Ask DeepSeek", "type": "main", "index": 0 }]] },
+    "Ask DeepSeek": { "main": [[{ "node": "Normalize Match", "type": "main", "index": 0 }]] },
+    "Normalize Match": { "main": [[{ "node": "Return Match", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
+}

@@ -1,0 +1,3 @@
+[submodule "staffmatch-frontend"]
+	path = staffmatch-frontend
+	url = https://github.com/ahmedr740/SmartHiring_frontend.git

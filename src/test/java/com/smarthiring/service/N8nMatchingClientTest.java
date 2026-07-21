@@ -143,6 +143,32 @@ class N8nMatchingClientTest {
         );
     }
 
+    @Test
+    void usesConfiguredDeepSeekSourceInsteadOfTrustingWebhookSource() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> response = mockResponse(200, "{\"targetId\":10,\"aiScore\":86,\"source\":\"UNTRUSTED\"}");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+        N8nMatchingClient client = new N8nMatchingClient(
+                true,
+                "http://n8n:5678/webhook/staffmatch/worker-shift-match",
+                "http://n8n:5678/webhook/staffmatch/manager-applicant-match",
+                "test-secret",
+                "N8N_DEEPSEEK",
+                httpClient
+        );
+
+        Optional<MatchRecommendationResponse> recommendation = client.scoreMatch(
+                "system",
+                "prompt",
+                10L,
+                75,
+                MatchType.WORKER_SHIFT
+        );
+
+        assertThat(recommendation).isPresent();
+        assertThat(recommendation.get().getSource()).isEqualTo("N8N_DEEPSEEK");
+    }
+
     private HttpResponse<String> mockResponse(int status, String body) {
         HttpResponse<String> response = mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(status);

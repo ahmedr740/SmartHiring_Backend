@@ -24,15 +24,21 @@ public class ShiftService {
     private final ShiftRepository shiftRepository;
     private final ApplicationRepository applicationRepository;
     private final UserRepository userRepository;
+    private final AiJobAlertService aiJobAlertService;
+    private final NotificationService notificationService;
 
     public ShiftService(
             ShiftRepository shiftRepository,
             ApplicationRepository applicationRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            AiJobAlertService aiJobAlertService,
+            NotificationService notificationService
     ) {
         this.shiftRepository = shiftRepository;
         this.applicationRepository = applicationRepository;
         this.userRepository = userRepository;
+        this.aiJobAlertService = aiJobAlertService;
+        this.notificationService = notificationService;
     }
 
     public Shift createShift(Shift shift) {
@@ -41,7 +47,11 @@ public class ShiftService {
         shift.setPaidAt(null);
         shift.setCompletedAt(null);
         shift.setStatus("OPEN");
-        return shiftRepository.save(shift);
+        Shift savedShift = shiftRepository.save(shift);
+        if (savedShift.getId() != null) {
+            aiJobAlertService.scanNewShift(savedShift.getId());
+        }
+        return savedShift;
     }
 
     public List<Shift> getAllShifts() {
@@ -89,6 +99,8 @@ public class ShiftService {
         }
 
         validateLifecycleTransition(shift, normalizedStatus);
+        String previousStatus = shift.getStatus() == null ? "OPEN" : shift.getStatus().trim().toUpperCase();
+        User assignedWorkerBeforeUpdate = shift.getAssignedWorker();
         shift.setStatus(normalizedStatus);
 
         if ("COMPLETED".equals(normalizedStatus)) {
@@ -107,6 +119,10 @@ public class ShiftService {
 
         if ("COMPLETED".equals(normalizedStatus)) {
             refreshCompletionStats(savedShift);
+        }
+
+        if (!previousStatus.equals(normalizedStatus)) {
+            notifyShiftLifecycle(savedShift, assignedWorkerBeforeUpdate, normalizedStatus);
         }
 
         return savedShift;
@@ -239,6 +255,43 @@ public class ShiftService {
             manager.setCompletedShiftsCount((int) shiftRepository.countByManagerIdAndStatusIgnoreCase(manager.getId(), "COMPLETED"));
             userRepository.save(manager);
         }
+    }
+
+    private void notifyShiftLifecycle(Shift shift, User assignedWorkerBeforeUpdate, String status) {
+        if ("CANCELLED".equals(status)) {
+            applicationRepository.findAllByShiftId(shift.getId()).stream()
+                    .filter(application -> application.getWorker() != null)
+                    .filter(application -> !"REJECTED".equalsIgnoreCase(application.getStatus()))
+                    .forEach(application -> notificationService.create(
+                            application.getWorker(),
+                            "SHIFT_CANCELLED",
+                            "Shift cancelled",
+                            "%s has been cancelled.".formatted(shift.getTitle()),
+                            "/worker-jobs",
+                            true,
+                            "shift-status:%d:%d:CANCELLED".formatted(shift.getId(), application.getWorker().getId())
+                    ));
+            return;
+        }
+
+        User worker = shift.getAssignedWorker() == null ? assignedWorkerBeforeUpdate : shift.getAssignedWorker();
+        if (worker == null || !List.of("IN_PROGRESS", "COMPLETED").contains(status)) {
+            return;
+        }
+
+        String title = "IN_PROGRESS".equals(status) ? "Shift started" : "Shift completed";
+        String message = "IN_PROGRESS".equals(status)
+                ? "%s is now in progress.".formatted(shift.getTitle())
+                : "%s has been marked completed.".formatted(shift.getTitle());
+        notificationService.create(
+                worker,
+                "SHIFT_" + status,
+                title,
+                message,
+                "/worker-jobs",
+                true,
+                "shift-status:%d:%d:%s".formatted(shift.getId(), worker.getId(), status)
+        );
     }
 
     private void validateShiftFields(Shift shift) {

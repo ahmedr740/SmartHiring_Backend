@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.m2-local
+.env
+.env.production
+backups
+outputs
+staffmatch-frontend
+target
+work
+*.log

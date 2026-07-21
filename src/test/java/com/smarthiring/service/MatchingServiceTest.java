@@ -95,7 +95,10 @@ class MatchingServiceTest {
         matchingService.getWorkerShiftMatches(worker);
 
         verify(externalMatchingClient).scoreMatch(anyString(), argThat(prompt ->
-                !prompt.contains("super-secret-password") && !prompt.contains("worker@example.com")
+                !prompt.contains("super-secret-password")
+                        && !prompt.contains("worker@example.com")
+                        && !prompt.contains("Ava Worker")
+                        && !prompt.contains("Manager 100")
         ), anyLong(), anyInt(), eq(MatchType.WORKER_SHIFT));
     }
 

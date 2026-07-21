@@ -1,0 +1,79 @@
+{
+  "name": "Smart Hiring - Gmail Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smart-hiring/notification-email",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "email-webhook",
+      "name": "Notification Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "smart-hiring-notification-email"
+    },
+    {
+      "parameters": {
+        "jsCode": "const expected = $env.N8N_WEBHOOK_SECRET || '';\nconst provided = $json.headers?.['x-staffmatch-webhook-secret'] || '';\nif (!expected) throw new Error('N8N_WEBHOOK_SECRET is not configured');\nif (provided !== expected) throw new Error('Unauthorized webhook request');\nconst body = $json.body || {};\nif (!body.recipientEmail || !body.title || !body.message) throw new Error('Invalid notification payload');\nconst escapeHtml = (value) => String(value ?? '').replace(/[&<>'\\\"]/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;',\"'\":'&#39;','\\\"':'&quot;'}[character]));\nreturn [{ json: {\n  recipientEmail: body.recipientEmail,\n  subject: `[Smart Hiring] ${body.title}`,\n  html: `<div style=\"font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#1f2937\"><h2 style=\"color:#f97316\">${escapeHtml(body.title)}</h2><p>Hello ${escapeHtml(body.recipientName || 'there')},</p><p>${escapeHtml(body.message)}</p><p><a href=\"${escapeHtml(body.actionUrl)}\" style=\"display:inline-block;background:#f97316;color:white;padding:12px 18px;border-radius:10px;text-decoration:none\">Open Smart Hiring</a></p><p style=\"font-size:12px;color:#6b7280\">This automated message contains no chat text, issue description, or password information.</p></div>`,\n  eventId: body.eventId\n} }];"
+      },
+      "id": "email-validate",
+      "name": "Validate and Build Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.recipientEmail }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "email-gmail",
+      "name": "Send Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sent\": true, \"eventId\": $('Validate and Build Email').first().json.eventId } }}",
+        "options": {}
+      },
+      "id": "email-response",
+      "name": "Confirm Delivery",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [780, 0]
+    }
+  ],
+  "connections": {
+    "Notification Webhook": {
+      "main": [[{"node": "Validate and Build Email", "type": "main", "index": 0}]]
+    },
+    "Validate and Build Email": {
+      "main": [[{"node": "Send Gmail", "type": "main", "index": 0}]]
+    },
+    "Send Gmail": {
+      "main": [[{"node": "Confirm Delivery", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "1c5c9c8e-bd64-4ed0-bd96-f3b8a75e62b4",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

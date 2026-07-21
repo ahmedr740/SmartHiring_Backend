@@ -27,9 +27,16 @@ public class MatchingClientConfiguration {
             @Value("${n8n.matching-enabled:true}") boolean matchingEnabled,
             @Value("${n8n.worker-match-webhook-url:http://localhost:5678/webhook/staffmatch/worker-shift-match}") String workerMatchWebhookUrl,
             @Value("${n8n.manager-match-webhook-url:http://localhost:5678/webhook/staffmatch/manager-applicant-match}") String managerMatchWebhookUrl,
-            @Value("${n8n.webhook-secret:}") String webhookSecret
+            @Value("${n8n.webhook-secret:}") String webhookSecret,
+            @Value("${n8n.match-source:N8N_OLLAMA}") String matchSource
     ) {
-        return new N8nMatchingClient(matchingEnabled, workerMatchWebhookUrl, managerMatchWebhookUrl, webhookSecret);
+        return new N8nMatchingClient(
+                matchingEnabled,
+                workerMatchWebhookUrl,
+                managerMatchWebhookUrl,
+                webhookSecret,
+                matchSource
+        );
     }
 
     @Bean

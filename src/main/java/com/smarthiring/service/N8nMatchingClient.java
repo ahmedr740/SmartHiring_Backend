@@ -23,6 +23,7 @@ public class N8nMatchingClient implements ExternalMatchingClient {
     private final String workerMatchWebhookUrl;
     private final String managerMatchWebhookUrl;
     private final String webhookSecret;
+    private final String matchSource;
 
     public N8nMatchingClient(
             boolean matchingEnabled,
@@ -30,11 +31,22 @@ public class N8nMatchingClient implements ExternalMatchingClient {
             String managerMatchWebhookUrl,
             String webhookSecret
     ) {
+        this(matchingEnabled, workerMatchWebhookUrl, managerMatchWebhookUrl, webhookSecret, "N8N_OLLAMA");
+    }
+
+    public N8nMatchingClient(
+            boolean matchingEnabled,
+            String workerMatchWebhookUrl,
+            String managerMatchWebhookUrl,
+            String webhookSecret,
+            String matchSource
+    ) {
         this(
                 matchingEnabled,
                 workerMatchWebhookUrl,
                 managerMatchWebhookUrl,
                 webhookSecret,
+                matchSource,
                 HttpClient.newBuilder()
                         .connectTimeout(Duration.ofSeconds(3))
                         .build()
@@ -48,12 +60,24 @@ public class N8nMatchingClient implements ExternalMatchingClient {
             String webhookSecret,
             HttpClient httpClient
     ) {
+        this(matchingEnabled, workerMatchWebhookUrl, managerMatchWebhookUrl, webhookSecret, "N8N_OLLAMA", httpClient);
+    }
+
+    N8nMatchingClient(
+            boolean matchingEnabled,
+            String workerMatchWebhookUrl,
+            String managerMatchWebhookUrl,
+            String webhookSecret,
+            String matchSource,
+            HttpClient httpClient
+    ) {
         this.objectMapper = new ObjectMapper();
         this.parser = new MatchRecommendationJsonParser(objectMapper);
         this.matchingEnabled = matchingEnabled;
         this.workerMatchWebhookUrl = workerMatchWebhookUrl;
         this.managerMatchWebhookUrl = managerMatchWebhookUrl;
         this.webhookSecret = webhookSecret;
+        this.matchSource = normalizeMatchSource(matchSource);
         this.httpClient = httpClient;
     }
 
@@ -80,7 +104,7 @@ public class N8nMatchingClient implements ExternalMatchingClient {
             body.put("targetId", targetId);
             body.put("fallbackScore", fallbackScore);
             body.put("matchType", matchType.name());
-            body.put("requiredSource", "N8N_OLLAMA");
+            body.put("requiredSource", matchSource);
             body.put("schema", List.of(
                     "targetId", "aiScore", "fallbackScore", "label", "explanation",
                     "strengths", "risks", "recommendedAction", "source"
@@ -101,7 +125,7 @@ public class N8nMatchingClient implements ExternalMatchingClient {
                 return Optional.empty();
             }
 
-            return parser.parse(response.body(), targetId, fallbackScore, "N8N_OLLAMA");
+            return parser.parse(response.body(), targetId, fallbackScore, matchSource);
         } catch (Exception ignored) {
             return Optional.empty();
         }
@@ -113,5 +137,12 @@ public class N8nMatchingClient implements ExternalMatchingClient {
                 && !workerMatchWebhookUrl.isBlank()
                 && managerMatchWebhookUrl != null
                 && !managerMatchWebhookUrl.isBlank();
+    }
+
+    private String normalizeMatchSource(String source) {
+        if ("N8N_DEEPSEEK".equalsIgnoreCase(source)) {
+            return "N8N_DEEPSEEK";
+        }
+        return "N8N_OLLAMA";
     }
 }

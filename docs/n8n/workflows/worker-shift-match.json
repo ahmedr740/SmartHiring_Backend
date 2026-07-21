@@ -1,0 +1,91 @@
+{
+  "name": "Smart Hiring - Worker Shift Match",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "staffmatch/worker-shift-match",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "worker-webhook",
+      "name": "Worker Match Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "staffmatch-worker-shift-match"
+    },
+    {
+      "parameters": {
+        "jsCode": "const expected = $env.N8N_WEBHOOK_SECRET || '';\nconst provided = $json.headers?.['x-staffmatch-webhook-secret'] || '';\nif (!expected) throw new Error('N8N_WEBHOOK_SECRET is not configured');\nif (provided !== expected) throw new Error('Unauthorized webhook request');\nif (!$json.body?.systemPrompt || !$json.body?.userPrompt) throw new Error('Missing matching prompt');\nreturn items;"
+      },
+      "id": "worker-validate",
+      "name": "Validate Webhook Secret",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": \"llama3.2:3b\", \"prompt\": $json.body.systemPrompt + \"\\n\\n\" + $json.body.userPrompt + \"\\n\\nReturn JSON only with targetId, aiScore, fallbackScore, label, explanation, strengths, risks, recommendedAction.\", \"stream\": false, \"format\": \"json\" } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "worker-ollama",
+      "name": "Ask Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $('Validate Webhook Secret').first().json.body;\nconst ollama = $input.first().json;\nconst parsed = typeof ollama.response === 'string' ? JSON.parse(ollama.response) : ollama.response;\nconst targetId = Number(request.targetId);\nconst parsedScore = Number(parsed.aiScore);\nconst candidateScore = Number.isFinite(parsedScore) ? (parsedScore >= 0 && parsedScore <= 1 ? parsedScore * 100 : parsedScore) : Number(request.fallbackScore);\nconst score = Math.round(Math.max(0, Math.min(100, candidateScore)));\nreturn [{ json: {\n  targetId,\n  aiScore: score,\n  fallbackScore: Number(request.fallbackScore),\n  label: parsed.label || (score >= 80 ? 'Strong match' : score >= 60 ? 'Good match' : 'Possible match'),\n  explanation: parsed.explanation || 'Ollama evaluated the supplied worker and shift details.',\n  strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],\n  risks: Array.isArray(parsed.risks) ? parsed.risks : [],\n  recommendedAction: parsed.recommendedAction || 'Review the shift details before applying.',\n  source: 'N8N_OLLAMA'\n} }];"
+      },
+      "id": "worker-normalize",
+      "name": "Normalize Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "worker-response",
+      "name": "Return Match",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [960, 0]
+    }
+  ],
+  "connections": {
+    "Worker Match Webhook": {
+      "main": [[{"node": "Validate Webhook Secret", "type": "main", "index": 0}]]
+    },
+    "Validate Webhook Secret": {
+      "main": [[{"node": "Ask Ollama", "type": "main", "index": 0}]]
+    },
+    "Ask Ollama": {
+      "main": [[{"node": "Normalize Match", "type": "main", "index": 0}]]
+    },
+    "Normalize Match": {
+      "main": [[{"node": "Return Match", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "08f4a98a-5ba1-4fb2-8f47-2330aa0e5aa1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
