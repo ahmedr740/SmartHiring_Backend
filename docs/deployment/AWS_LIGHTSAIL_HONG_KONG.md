@@ -1,6 +1,6 @@
 # AWS Lightsail Hong Kong deployment
 
-This guide deploys Smart Hiring to one 4 GB Ubuntu Lightsail instance in Asia Pacific (Hong Kong), `ap-east-1`. React, Spring Boot, PostgreSQL, n8n, backups, and Caddy run as Docker containers on the instance. DeepSeek is the only metered external application dependency.
+This guide deploys HubPin to one 4 GB Ubuntu Lightsail instance in Asia Pacific (Hong Kong), `ap-east-1`. React, Spring Boot, PostgreSQL, n8n, backups, and Caddy run as Docker containers on the instance. DeepSeek is the only metered external application dependency.
 
 ## Cost guardrails
 
@@ -125,7 +125,7 @@ Check:
 - `https://api.example.com/api/health`
 - `https://automation.example.com`
 
-The first PostgreSQL start creates `staffmatch_prod` and `n8n_prod` with separate application roles. Flyway creates the Smart Hiring schema when the backend starts. Database and n8n ports stay on the private Docker network.
+The first PostgreSQL start creates `staffmatch_prod` and `n8n_prod` with separate application roles. Flyway creates and upgrades the HubPin schema when the backend starts. Database and n8n ports stay on the private Docker network.
 
 The production frontend is built with demo quick-access credentials hidden and source maps disabled, so the local fixed demo credentials are not published. If demonstration accounts are needed, create them with strong temporary passwords.
 
@@ -133,16 +133,20 @@ The production frontend is built with demo quick-access credentials hidden and s
 
 1. Open `https://automation.example.com` and pass the Caddy login.
 2. Create the n8n owner account and enable two-factor authentication.
-3. Create a **Header Auth** credential named `Smart Hiring Webhook Secret`:
+3. Create a **Header Auth** credential named `HubPin Webhook Secret`:
    - Header name: `X-StaffMatch-Webhook-Secret`
    - Header value: the exact `N8N_WEBHOOK_SECRET` value from `.env.production`
 4. Create another **Header Auth** credential named `DeepSeek Authorization`:
    - Header name: `Authorization`
    - Header value: `Bearer YOUR_DEEPSEEK_API_KEY`
-5. Import `hosted-worker-shift-match-deepseek.json` and `hosted-manager-applicant-match-deepseek.json` from `docs/n8n/workflows`.
-6. On each Webhook node, select `Smart Hiring Webhook Secret`.
+5. Import all four AI workflow files from `docs/n8n/workflows`:
+   - `hosted-worker-shift-match-deepseek.json`
+   - `hosted-manager-applicant-match-deepseek.json`
+   - `hosted-shift-draft-deepseek.json`
+   - `hosted-shift-search-deepseek.json`
+6. On each Webhook node, select `HubPin Webhook Secret`.
 7. On each **Ask DeepSeek** node, select `DeepSeek Authorization`.
-8. Save and publish both workflows.
+8. Save and publish all four workflows. Confirm that only one published workflow owns each webhook path.
 
 The exports contain no API key, webhook secret, credential ID, execution data, or user information. Code nodes cannot read container environment variables. DeepSeek receives only the sanitized system and user prompts—not the response `targetId`.
 
@@ -152,16 +156,112 @@ For Gmail, import `hosted-notification-email.json`, select the webhook credentia
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d backend
 ```
 
-## 8. Acceptance test
+## 8. Update an already-running Lightsail deployment
+
+Use this procedure when HubPin is already running from an earlier GitHub commit.
+
+### A. Push the frontend repository from the development computer
+
+The frontend is a Git submodule, so it must be committed and pushed before the parent repository:
+
+```powershell
+Set-Location .\staffmatch-frontend
+git status
+git add public src
+git commit -m "Add HubPin branding and AI shift assistants"
+git push origin HEAD
+git rev-parse HEAD
+Set-Location ..
+```
+
+Keep the printed frontend commit SHA. The parent repository must record this exact submodule commit.
+
+### B. Push the parent/backend repository from the development computer
+
+From the `Smart_Hiring` repository root:
+
+```powershell
+git status
+git add docker-compose.prod.yml README.md docs src staffmatch-frontend
+git commit -m "Wire HubPin AI assistants for production"
+git push origin HEAD
+git submodule status
+```
+
+Before continuing, open both repositories on GitHub and confirm the two new commits are visible. In the parent repository, opening `staffmatch-frontend` must resolve to the frontend commit printed in step A.
+
+### C. Back up and pull the release on Lightsail
+
+SSH into the Lightsail instance and run these commands inside the existing clone:
+
+```bash
+cd ~/Smart_Hiring
+docker compose --env-file .env.production -f docker-compose.prod.yml exec -T postgres \
+  pg_dump -U postgres -Fc staffmatch_prod > "backups/staffmatch_prod-before-hubpin-$(date +%Y%m%d-%H%M%S).dump"
+git status
+git pull --ff-only
+git submodule sync --recursive
+git submodule update --init --recursive
+git submodule status
+```
+
+Stop if `git status` shows uncommitted server-side source changes. Preserve or review those changes before pulling; do not discard them blindly.
+
+### D. Add and publish the two new n8n workflows
+
+The existing worker/manager matching workflows can remain published. In `https://automation.YOUR_DOMAIN`:
+
+1. Import `docs/n8n/workflows/hosted-shift-draft-deepseek.json`.
+2. Import `docs/n8n/workflows/hosted-shift-search-deepseek.json`.
+3. On both Webhook nodes, select the existing `HubPin Webhook Secret` credential. If its current name is `Smart Hiring Webhook Secret`, it can be reused or renamed; the header name and secret value are what matter.
+4. On both **Ask DeepSeek** nodes, select the existing `DeepSeek Authorization` credential.
+5. Save and publish both workflows.
+6. Confirm the production webhook paths shown by n8n end with `/webhook/staffmatch/shift-draft` and `/webhook/staffmatch/shift-search`.
+
+Do not create a second published workflow with either of these same paths.
+
+### E. Validate and rebuild on Lightsail
+
+No new `.env.production` variables are required because the internal workflow URLs are defined in `docker-compose.prod.yml`.
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml config --quiet
+docker compose --env-file .env.production -f docker-compose.prod.yml build backend
+docker compose --env-file .env.production -f docker-compose.prod.yml build frontend
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d backend frontend
+docker compose --env-file .env.production -f docker-compose.prod.yml ps
+docker compose --env-file .env.production -f docker-compose.prod.yml logs --tail=200 backend
+```
+
+The backend startup log must show Flyway reaching schema version `10`. All listed services must be healthy before testing.
+
+### F. Verify the release
+
+1. Open the public site in a private/incognito window and hard-refresh it.
+2. Confirm the browser tab says `jobhubhk` and the visible brand says `HubPin`.
+3. Log in with an approved manager account, open **Post New Shift**, generate a draft, review the fields, and post only after they are correct.
+4. Log in with a worker account, open **AI Job Match**, open **AI Assistant**, and search using role, date/time, location, or pay.
+5. In n8n, confirm successful executions for **Shift Draft Assistant (DeepSeek)** and **Shift Search Assistant (DeepSeek)**.
+6. Confirm the manager result fills the editable form and the worker result shows only currently open shifts.
+
+If old branding remains, rebuild the frontend without Docker cache and recreate it:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml build --no-cache frontend
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d frontend
+```
+
+## 9. Acceptance test
 
 1. Register and log in as worker and manager accounts.
 2. Confirm the manager approval flow with the administrator.
-3. Post a shift and open worker matches.
-4. Confirm genuine hosted matches return `source: N8N_DEEPSEEK` and display **DeepSeek AI**.
-5. Apply, accept/reject, start, complete, mock-pay, rate, chat, report an issue, and review notifications.
-6. Stop n8n and verify matching returns `FALLBACK`, then restart n8n.
-7. Restart the instance and confirm application data, n8n workflows, credentials, and HTTPS certificates persist.
-8. Test with up to 10 concurrent browser sessions and check `docker stats` for memory pressure.
+3. Generate and review a manager AI shift draft, then post the shift.
+4. Use the worker AI shift search and confirm it returns only open shifts.
+5. Open worker/manager matches and confirm genuine hosted results return `source: N8N_DEEPSEEK` and display **DeepSeek AI**.
+6. Apply, accept/reject, start, complete, mock-pay, rate, chat, report an issue, and review notifications.
+7. Stop n8n and verify matching returns `FALLBACK`; verify the draft/search assistants show a useful unavailable message while their manual controls remain usable, then restart n8n.
+8. Restart the instance and confirm application data, all four n8n workflows, credentials, and HTTPS certificates persist.
+9. Test with up to 10 concurrent browser sessions and check `docker stats` for memory pressure.
 
 AI results are advisory. Do not treat an AI score as an automated employment decision.
 

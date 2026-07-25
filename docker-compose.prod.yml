@@ -44,6 +44,8 @@ services:
       N8N_MATCHING_ENABLED: "true"
       N8N_WORKER_MATCH_WEBHOOK_URL: http://n8n:5678/webhook/staffmatch/worker-shift-match
       N8N_MANAGER_MATCH_WEBHOOK_URL: http://n8n:5678/webhook/staffmatch/manager-applicant-match
+      N8N_SHIFT_DRAFT_WEBHOOK_URL: http://n8n:5678/webhook/staffmatch/shift-draft
+      N8N_SHIFT_SEARCH_WEBHOOK_URL: http://n8n:5678/webhook/staffmatch/shift-search
       N8N_MATCH_SOURCE: N8N_DEEPSEEK
       N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET}
       N8N_NOTIFICATION_ENABLED: ${N8N_NOTIFICATION_ENABLED:-false}

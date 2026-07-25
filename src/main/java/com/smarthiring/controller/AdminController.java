@@ -180,7 +180,7 @@ public class AdminController {
                     saved,
                     "ACCOUNT_STATUS_CHANGED",
                     accountStatusTitle(status),
-                    "Your Smart Hiring account status is now %s.".formatted(status.toLowerCase()),
+                    "Your HubPin account status is now %s.".formatted(status.toLowerCase()),
                     destination,
                     true,
                     "account-status:%d:%s".formatted(saved.getId(), status)

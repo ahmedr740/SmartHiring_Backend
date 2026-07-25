@@ -1,9 +1,12 @@
 package com.smarthiring.controller;
 
+import com.smarthiring.dto.ShiftDraftRequest;
+import com.smarthiring.dto.ShiftDraftResponse;
 import com.smarthiring.model.Shift;
 import com.smarthiring.model.User;
 import com.smarthiring.repository.UserRepository;
 import com.smarthiring.service.MockPaymentService;
+import com.smarthiring.service.ShiftDraftService;
 import com.smarthiring.service.ShiftService;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -20,11 +23,18 @@ public class ShiftController {
     private final ShiftService shiftService;
     private final MockPaymentService mockPaymentService;
     private final UserRepository userRepository;
+    private final ShiftDraftService shiftDraftService;
 
-    public ShiftController(ShiftService shiftService, MockPaymentService mockPaymentService, UserRepository userRepository) {
+    public ShiftController(
+            ShiftService shiftService,
+            MockPaymentService mockPaymentService,
+            UserRepository userRepository,
+            ShiftDraftService shiftDraftService
+    ) {
         this.shiftService = shiftService;
         this.mockPaymentService = mockPaymentService;
         this.userRepository = userRepository;
+        this.shiftDraftService = shiftDraftService;
     }
 
     @GetMapping
@@ -49,6 +59,13 @@ public class ShiftController {
 
         shift.setManager(manager);
         return shiftService.createShift(shift);
+    }
+
+    @PostMapping("/ai-draft")
+    public ShiftDraftResponse draftShift(@RequestBody ShiftDraftRequest request, Authentication authentication) {
+        User manager = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new RuntimeException("Manager not found"));
+        return shiftDraftService.draftShift(request.getManagerInput(), manager);
     }
 
     @PutMapping("/{id}/status")

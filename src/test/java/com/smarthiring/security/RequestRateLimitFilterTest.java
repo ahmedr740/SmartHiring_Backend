@@ -23,6 +23,7 @@ class RequestRateLimitFilterTest {
                 new RequestRateLimitFilter.Policy("matching", 5, 60),
                 new RequestRateLimitFilter.Policy("applications", 5, 60),
                 new RequestRateLimitFilter.Policy("chat", 5, 60),
+                new RequestRateLimitFilter.Policy("shiftDraft", 5, 60),
                 Clock.fixed(Instant.parse("2026-07-21T00:00:00Z"), ZoneOffset.UTC)
         );
 

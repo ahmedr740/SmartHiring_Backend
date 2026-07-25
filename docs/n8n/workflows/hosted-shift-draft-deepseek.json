@@ -1,0 +1,81 @@
+{
+  "name": "Smart Hiring Hosted - Shift Draft Assistant (DeepSeek)",
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "headerAuth",
+        "httpMethod": "POST",
+        "path": "staffmatch/shift-draft",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "hosted-shift-draft-webhook",
+      "name": "Shift Draft Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "staffmatch-hosted-shift-draft"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nif (!body.systemPrompt || !body.userPrompt) throw new Error('Missing draft prompt');\nreturn items;"
+      },
+      "id": "hosted-shift-draft-validate",
+      "name": "Validate Draft Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": \"deepseek-v4-flash\", \"messages\": [ { \"role\": \"system\", \"content\": $json.body.systemPrompt + \"\\nReturn one JSON object only with title, description, requirements, roleNeeded, pay, date, startTime, endTime, location, and assumptions.\" }, { \"role\": \"user\", \"content\": $json.body.userPrompt } ], \"response_format\": { \"type\": \"json_object\" }, \"thinking\": { \"type\": \"disabled\" }, \"max_tokens\": 600, \"stream\": false } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "hosted-shift-draft-deepseek",
+      "name": "Ask DeepSeek",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.choices?.[0]?.message?.content;\nif (typeof content !== 'string' || !content.trim()) throw new Error('DeepSeek returned no JSON content');\nconst cleaned = content.trim().replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '');\nconst parsed = JSON.parse(cleaned);\nconst allowedRoles = ['WAITER', 'CHEF', 'BARISTA', 'CASHIER', 'KITCHEN HELPER'];\nconst role = String(parsed.roleNeeded || '').trim().toUpperCase();\nconst pay = Number(parsed.pay);\nreturn [{ json: {\n  title: String(parsed.title || '').trim(),\n  description: String(parsed.description || '').trim(),\n  requirements: String(parsed.requirements || '').trim(),\n  roleNeeded: allowedRoles.includes(role) ? role : '',\n  pay: Number.isFinite(pay) && pay > 0 ? pay : null,\n  date: String(parsed.date || '').trim(),\n  startTime: String(parsed.startTime || '').trim(),\n  endTime: String(parsed.endTime || '').trim(),\n  location: String(parsed.location || '').trim(),\n  assumptions: String(parsed.assumptions || '').trim(),\n  source: 'N8N_DEEPSEEK'\n} }];"
+      },
+      "id": "hosted-shift-draft-normalize",
+      "name": "Normalize Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "hosted-shift-draft-response",
+      "name": "Return Draft",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [960, 0]
+    }
+  ],
+  "connections": {
+    "Shift Draft Webhook": { "main": [[{ "node": "Validate Draft Request", "type": "main", "index": 0 }]] },
+    "Validate Draft Request": { "main": [[{ "node": "Ask DeepSeek", "type": "main", "index": 0 }]] },
+    "Ask DeepSeek": { "main": [[{ "node": "Normalize Draft", "type": "main", "index": 0 }]] },
+    "Normalize Draft": { "main": [[{ "node": "Return Draft", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
+}

@@ -1,4 +1,4 @@
-# Smart Hiring: free local AI and n8n
+# HubPin: local and hosted AI with n8n
 
 > For the AWS Hong Kong deployment with DeepSeek and credential-protected webhooks, follow [the Lightsail deployment guide](../deployment/AWS_LIGHTSAIL_HONG_KONG.md). The original workflows below remain the local Ollama variants.
 
@@ -56,6 +56,8 @@ In n8n, use **Workflows → Import from File** and import:
 - `docs/n8n/workflows/worker-shift-match.json`
 - `docs/n8n/workflows/manager-applicant-match.json`
 - `docs/n8n/workflows/notification-email.json`
+- `docs/n8n/workflows/shift-draft.json` (manager shift-posting assistant)
+- `docs/n8n/workflows/shift-search.json` (worker shift search assistant)
 
 Open each workflow and verify the Webhook path. Run a manual test before selecting **Publish** or **Active**. Spring uses the production `/webhook/...` URLs, not n8n's temporary `/webhook-test/...` URLs.
 
@@ -78,7 +80,7 @@ For self-hosted n8n:
 
 Do not put the Google client secret, refresh token, or Gmail credential in `.env` or a workflow export.
 
-## 5. Configure Smart Hiring
+## 5. Configure HubPin
 
 Add these values to the project-root `.env`:
 
@@ -87,6 +89,8 @@ MATCHING_PROVIDER=n8n
 N8N_MATCHING_ENABLED=true
 N8N_WORKER_MATCH_WEBHOOK_URL=http://localhost:5678/webhook/staffmatch/worker-shift-match
 N8N_MANAGER_MATCH_WEBHOOK_URL=http://localhost:5678/webhook/staffmatch/manager-applicant-match
+N8N_SHIFT_DRAFT_WEBHOOK_URL=http://localhost:5678/webhook/staffmatch/shift-draft
+N8N_SHIFT_SEARCH_WEBHOOK_URL=http://localhost:5678/webhook/staffmatch/shift-search
 N8N_NOTIFICATION_ENABLED=true
 N8N_NOTIFICATION_WEBHOOK_URL=http://localhost:5678/webhook/smart-hiring/notification-email
 N8N_WEBHOOK_SECRET=replace-with-the-same-long-random-secret
@@ -135,9 +139,14 @@ Email is enabled for AI job alerts, applications, shift lifecycle changes, payme
 
 ## Hosted DeepSeek workflow variants
 
-The three files beginning with `hosted-` are production variants. They deliberately contain no credential references or secrets, so imported credential-dependent nodes remain incomplete until credentials are selected.
+The files beginning with `hosted-` are production variants. They deliberately contain no credential references or secrets, so imported credential-dependent nodes remain incomplete until credentials are selected.
 
-- Use `Smart Hiring Webhook Secret` Header Auth on every hosted Webhook node.
+- Production requires these four published AI workflows:
+  - `hosted-worker-shift-match-deepseek.json`
+  - `hosted-manager-applicant-match-deepseek.json`
+  - `hosted-shift-draft-deepseek.json`
+  - `hosted-shift-search-deepseek.json`
+- Use `HubPin Webhook Secret` Header Auth on every hosted Webhook node.
 - Use `DeepSeek Authorization` Header Auth on each hosted **Ask DeepSeek** node.
 - Use the hosted Gmail OAuth credential on **Send Gmail**.
 - Keep `N8N_BLOCK_ENV_ACCESS_IN_NODE=true` on AWS.

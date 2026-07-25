@@ -1,6 +1,6 @@
-# Smart Hiring
+# HubPin
 
-Smart Hiring is a group project for a college software/web development course. The idea behind the project is to help restaurant managers post short-term shifts and let workers apply for flexible jobs more easily.
+HubPin is a group project for a college software/web development course. The idea behind the project is to help restaurant managers post short-term shifts and let workers apply for flexible jobs more easily.
 
 ## AWS Hong Kong deployment
 
@@ -244,14 +244,16 @@ ollama pull llama3.2:3b
 
 2. Run n8n locally on `http://localhost:5678`.
 
-3. Create two n8n workflows:
+3. Import or create four n8n workflows:
 
 - worker shift match webhook: `/webhook/staffmatch/worker-shift-match`
 - manager applicant match webhook: `/webhook/staffmatch/manager-applicant-match`
+- manager shift draft webhook: `/webhook/staffmatch/shift-draft`
+- worker shift search webhook: `/webhook/staffmatch/shift-search`
 
 Each workflow should start with a Webhook node, validate the `X-StaffMatch-Webhook-Secret` header, send the sanitized request body to Ollama with an HTTP Request node, normalize the result in a Code node, and return JSON with Respond to Webhook.
 
-The response should include `targetId`, `aiScore`, `fallbackScore`, `label`, `explanation`, `strengths`, `risks`, `recommendedAction`, and `source`. Use `source: "N8N_OLLAMA"` for local AI responses. If the webhook is off, slow, or returns an error, Spring shows: "Local AI is unavailable, using built-in match score."
+Matching responses should include `targetId`, `aiScore`, `fallbackScore`, `label`, `explanation`, `strengths`, `risks`, `recommendedAction`, and `source`. The draft response should contain the structured shift fields, and the search response should contain `interpretation` plus a `matches` array. Use `source: "N8N_OLLAMA"` for local AI responses. If matching is unavailable, Spring uses the built-in score. The two assistants keep their normal manual form/search available when AI is unavailable.
 
 ## Notes About The Project
 

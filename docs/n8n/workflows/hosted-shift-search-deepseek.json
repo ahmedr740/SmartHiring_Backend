@@ -1,0 +1,81 @@
+{
+  "name": "Smart Hiring Hosted - Shift Search Assistant (DeepSeek)",
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "headerAuth",
+        "httpMethod": "POST",
+        "path": "staffmatch/shift-search",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "hosted-shift-search-webhook",
+      "name": "Shift Search Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "staffmatch-hosted-shift-search"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nif (!body.systemPrompt || !body.userPrompt) throw new Error('Missing search prompt');\nreturn items;"
+      },
+      "id": "hosted-shift-search-validate",
+      "name": "Validate Search Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": \"deepseek-v4-flash\", \"messages\": [ { \"role\": \"system\", \"content\": $json.body.systemPrompt + \"\\nReturn one JSON object only with interpretation and matches (array of shiftId, reason).\" }, { \"role\": \"user\", \"content\": $json.body.userPrompt } ], \"response_format\": { \"type\": \"json_object\" }, \"thinking\": { \"type\": \"disabled\" }, \"max_tokens\": 700, \"stream\": false } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "hosted-shift-search-deepseek",
+      "name": "Ask DeepSeek",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.choices?.[0]?.message?.content;\nif (typeof content !== 'string' || !content.trim()) throw new Error('DeepSeek returned no JSON content');\nconst cleaned = content.trim().replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '');\nconst parsed = JSON.parse(cleaned);\nconst matches = Array.isArray(parsed.matches) ? parsed.matches.slice(0, 12).map(m => ({ shiftId: Number(m.shiftId), reason: String(m.reason || '').trim() })) : [];\nreturn [{ json: {\n  interpretation: String(parsed.interpretation || '').trim(),\n  matches,\n  source: 'N8N_DEEPSEEK'\n} }];"
+      },
+      "id": "hosted-shift-search-normalize",
+      "name": "Normalize Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "hosted-shift-search-response",
+      "name": "Return Search Results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [960, 0]
+    }
+  ],
+  "connections": {
+    "Shift Search Webhook": { "main": [[{ "node": "Validate Search Request", "type": "main", "index": 0 }]] },
+    "Validate Search Request": { "main": [[{ "node": "Ask DeepSeek", "type": "main", "index": 0 }]] },
+    "Ask DeepSeek": { "main": [[{ "node": "Normalize Search Results", "type": "main", "index": 0 }]] },
+    "Normalize Search Results": { "main": [[{ "node": "Return Search Results", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
+}

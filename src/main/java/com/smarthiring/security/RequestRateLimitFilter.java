@@ -29,6 +29,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
     private final Policy matchingPolicy;
     private final Policy applicationPolicy;
     private final Policy chatPolicy;
+    private final Policy shiftDraftPolicy;
     private final Clock clock;
 
     @Autowired
@@ -43,7 +44,9 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
             @Value("${app.rate-limit.applications.requests:30}") int applicationRequests,
             @Value("${app.rate-limit.applications.window-seconds:3600}") long applicationWindowSeconds,
             @Value("${app.rate-limit.chat.requests:60}") int chatRequests,
-            @Value("${app.rate-limit.chat.window-seconds:60}") long chatWindowSeconds
+            @Value("${app.rate-limit.chat.window-seconds:60}") long chatWindowSeconds,
+            @Value("${app.rate-limit.shift-draft.requests:20}") int shiftDraftRequests,
+            @Value("${app.rate-limit.shift-draft.window-seconds:3600}") long shiftDraftWindowSeconds
     ) {
         this(
                 enabled,
@@ -52,6 +55,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
                 new Policy("matching", matchingRequests, matchingWindowSeconds),
                 new Policy("applications", applicationRequests, applicationWindowSeconds),
                 new Policy("chat", chatRequests, chatWindowSeconds),
+                new Policy("shiftDraft", shiftDraftRequests, shiftDraftWindowSeconds),
                 Clock.systemUTC()
         );
     }
@@ -63,6 +67,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
             Policy matchingPolicy,
             Policy applicationPolicy,
             Policy chatPolicy,
+            Policy shiftDraftPolicy,
             Clock clock
     ) {
         this.enabled = enabled;
@@ -71,6 +76,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         this.matchingPolicy = matchingPolicy;
         this.applicationPolicy = applicationPolicy;
         this.chatPolicy = chatPolicy;
+        this.shiftDraftPolicy = shiftDraftPolicy;
         this.clock = clock;
     }
 
@@ -137,6 +143,9 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         }
         if ("POST".equalsIgnoreCase(method) && path.startsWith("/api/chats/")) {
             return chatPolicy;
+        }
+        if ("POST".equalsIgnoreCase(method) && "/api/shifts/ai-draft".equals(path)) {
+            return shiftDraftPolicy;
         }
         return null;
     }

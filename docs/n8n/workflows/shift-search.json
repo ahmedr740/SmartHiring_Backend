@@ -1,0 +1,90 @@
+{
+  "name": "Smart Hiring - Shift Search Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "staffmatch/shift-search",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "shift-search-webhook",
+      "name": "Shift Search Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "staffmatch-shift-search"
+    },
+    {
+      "parameters": {
+        "jsCode": "const expected = $env.N8N_WEBHOOK_SECRET || '';\nconst provided = $json.headers?.['x-staffmatch-webhook-secret'] || '';\nif (!expected) throw new Error('N8N_WEBHOOK_SECRET is not configured');\nif (provided !== expected) throw new Error('Unauthorized webhook request');\nif (!$json.body?.systemPrompt || !$json.body?.userPrompt) throw new Error('Missing search prompt');\nreturn items;"
+      },
+      "id": "shift-search-validate",
+      "name": "Validate Webhook Secret",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": \"llama3.2:3b\", \"prompt\": $json.body.systemPrompt + \"\\n\\n\" + $json.body.userPrompt + \"\\n\\nReturn JSON only with interpretation and matches (array of shiftId, reason).\", \"stream\": false, \"format\": \"json\" } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "shift-search-ollama",
+      "name": "Ask Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ollama = $input.first().json;\nconst parsed = typeof ollama.response === 'string' ? JSON.parse(ollama.response) : ollama.response;\nconst matches = Array.isArray(parsed.matches) ? parsed.matches.slice(0, 12).map(m => ({ shiftId: Number(m.shiftId), reason: String(m.reason || '').trim() })) : [];\nreturn [{ json: {\n  interpretation: String(parsed.interpretation || '').trim(),\n  matches,\n  source: 'N8N_OLLAMA'\n} }];"
+      },
+      "id": "shift-search-normalize",
+      "name": "Normalize Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "shift-search-response",
+      "name": "Return Search Results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [960, 0]
+    }
+  ],
+  "connections": {
+    "Shift Search Webhook": {
+      "main": [[{"node": "Validate Webhook Secret", "type": "main", "index": 0}]]
+    },
+    "Validate Webhook Secret": {
+      "main": [[{"node": "Ask Ollama", "type": "main", "index": 0}]]
+    },
+    "Ask Ollama": {
+      "main": [[{"node": "Normalize Search Results", "type": "main", "index": 0}]]
+    },
+    "Normalize Search Results": {
+      "main": [[{"node": "Return Search Results", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

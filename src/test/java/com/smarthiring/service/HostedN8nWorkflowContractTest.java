@@ -15,10 +15,12 @@ class HostedN8nWorkflowContractTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void hostedMatchingWorkflowsUseDeepSeekAndContainNoCredentialMaterial() throws Exception {
+    void hostedAiWorkflowsUseDeepSeekAndContainNoCredentialMaterial() throws Exception {
         for (String filename : List.of(
                 "hosted-worker-shift-match-deepseek.json",
-                "hosted-manager-applicant-match-deepseek.json"
+                "hosted-manager-applicant-match-deepseek.json",
+                "hosted-shift-draft-deepseek.json",
+                "hosted-shift-search-deepseek.json"
         )) {
             String workflow = readWorkflow(filename);
             JsonNode root = objectMapper.readTree(workflow);

@@ -20,6 +20,12 @@ public class Shift {
     private Double pay;
     private String roleNeeded;
     private String location;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(columnDefinition = "TEXT")
+    private String requirements;
     private String status;
     private Boolean paid;
     private LocalDateTime createdAt;
@@ -75,6 +81,12 @@ public class Shift {
 
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public String getRequirements() { return requirements; }
+    public void setRequirements(String requirements) { this.requirements = requirements; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

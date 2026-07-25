@@ -1,0 +1,90 @@
+{
+  "name": "Smart Hiring - Shift Draft Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "staffmatch/shift-draft",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "shift-draft-webhook",
+      "name": "Shift Draft Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "staffmatch-shift-draft"
+    },
+    {
+      "parameters": {
+        "jsCode": "const expected = $env.N8N_WEBHOOK_SECRET || '';\nconst provided = $json.headers?.['x-staffmatch-webhook-secret'] || '';\nif (!expected) throw new Error('N8N_WEBHOOK_SECRET is not configured');\nif (provided !== expected) throw new Error('Unauthorized webhook request');\nif (!$json.body?.systemPrompt || !$json.body?.userPrompt) throw new Error('Missing draft prompt');\nreturn items;"
+      },
+      "id": "shift-draft-validate",
+      "name": "Validate Webhook Secret",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": \"llama3.2:3b\", \"prompt\": $json.body.systemPrompt + \"\\n\\n\" + $json.body.userPrompt + \"\\n\\nReturn JSON only with title, description, requirements, roleNeeded, pay, date, startTime, endTime, location, assumptions.\", \"stream\": false, \"format\": \"json\" } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "shift-draft-ollama",
+      "name": "Ask Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ollama = $input.first().json;\nconst parsed = typeof ollama.response === 'string' ? JSON.parse(ollama.response) : ollama.response;\nconst allowedRoles = ['WAITER', 'CHEF', 'BARISTA', 'CASHIER', 'KITCHEN HELPER'];\nconst role = String(parsed.roleNeeded || '').trim().toUpperCase();\nconst pay = Number(parsed.pay);\nreturn [{ json: {\n  title: String(parsed.title || '').trim(),\n  description: String(parsed.description || '').trim(),\n  requirements: String(parsed.requirements || '').trim(),\n  roleNeeded: allowedRoles.includes(role) ? role : '',\n  pay: Number.isFinite(pay) && pay > 0 ? pay : null,\n  date: String(parsed.date || '').trim(),\n  startTime: String(parsed.startTime || '').trim(),\n  endTime: String(parsed.endTime || '').trim(),\n  location: String(parsed.location || '').trim(),\n  assumptions: String(parsed.assumptions || '').trim(),\n  source: 'N8N_OLLAMA'\n} }];"
+      },
+      "id": "shift-draft-normalize",
+      "name": "Normalize Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "shift-draft-response",
+      "name": "Return Draft",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [960, 0]
+    }
+  ],
+  "connections": {
+    "Shift Draft Webhook": {
+      "main": [[{"node": "Validate Webhook Secret", "type": "main", "index": 0}]]
+    },
+    "Validate Webhook Secret": {
+      "main": [[{"node": "Ask Ollama", "type": "main", "index": 0}]]
+    },
+    "Ask Ollama": {
+      "main": [[{"node": "Normalize Draft", "type": "main", "index": 0}]]
+    },
+    "Normalize Draft": {
+      "main": [[{"node": "Return Draft", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

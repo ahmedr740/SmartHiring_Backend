@@ -25,7 +25,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class MatchingService {
 
     private static final String SYSTEM_PROMPT = """
-            You rank restaurant staffing matches for Smart Hiring.
+            You rank restaurant staffing matches for HubPin.
             Use only the supplied shift requirements, worker skills, broad location, availability, rating, and completion data.
             Do not infer protected traits. Do not mention private data that is not supplied.
             This score is advisory and must not be the sole basis for an employment decision.
