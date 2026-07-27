@@ -2,6 +2,8 @@ package com.smarthiring.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthiring.dto.ShiftSearchResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -15,6 +17,8 @@ import java.util.Optional;
 import java.util.Set;
 
 public class N8nShiftSearchClient implements ExternalShiftSearchClient {
+
+    private static final Logger log = LoggerFactory.getLogger(N8nShiftSearchClient.class);
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -31,6 +35,7 @@ public class N8nShiftSearchClient implements ExternalShiftSearchClient {
                 webhookSecret,
                 matchSource,
                 HttpClient.newBuilder()
+                        .version(HttpClient.Version.HTTP_1_1)
                         .connectTimeout(Duration.ofSeconds(3))
                         .build()
         );
@@ -67,7 +72,7 @@ public class N8nShiftSearchClient implements ExternalShiftSearchClient {
 
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(webhookUrl))
-                    .timeout(Duration.ofSeconds(30))
+                    .timeout(Duration.ofSeconds(45))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)));
 
@@ -77,11 +82,17 @@ public class N8nShiftSearchClient implements ExternalShiftSearchClient {
 
             HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("n8n shift search webhook returned HTTP {}", response.statusCode());
                 return Optional.empty();
             }
 
-            return parser.parse(response.body(), allowedShiftIds, matchSource);
-        } catch (Exception ignored) {
+            Optional<ShiftSearchResponse> parsed = parser.parse(response.body(), allowedShiftIds, matchSource);
+            if (parsed.isEmpty()) {
+                log.warn("n8n shift search webhook returned an invalid response body");
+            }
+            return parsed;
+        } catch (Exception exception) {
+            log.warn("n8n shift search webhook call failed: {}", exception.toString());
             return Optional.empty();
         }
     }

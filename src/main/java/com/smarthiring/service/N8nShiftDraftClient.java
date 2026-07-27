@@ -2,6 +2,8 @@ package com.smarthiring.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthiring.dto.ShiftDraftResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -14,6 +16,8 @@ import java.util.Map;
 import java.util.Optional;
 
 public class N8nShiftDraftClient implements ExternalShiftDraftClient {
+
+    private static final Logger log = LoggerFactory.getLogger(N8nShiftDraftClient.class);
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -30,6 +34,7 @@ public class N8nShiftDraftClient implements ExternalShiftDraftClient {
                 webhookSecret,
                 matchSource,
                 HttpClient.newBuilder()
+                        .version(HttpClient.Version.HTTP_1_1)
                         .connectTimeout(Duration.ofSeconds(3))
                         .build()
         );
@@ -69,7 +74,7 @@ public class N8nShiftDraftClient implements ExternalShiftDraftClient {
 
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(webhookUrl))
-                    .timeout(Duration.ofSeconds(30))
+                    .timeout(Duration.ofSeconds(45))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)));
 
@@ -79,11 +84,17 @@ public class N8nShiftDraftClient implements ExternalShiftDraftClient {
 
             HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("n8n shift draft webhook returned HTTP {}", response.statusCode());
                 return Optional.empty();
             }
 
-            return parser.parse(response.body(), matchSource);
-        } catch (Exception ignored) {
+            Optional<ShiftDraftResponse> parsed = parser.parse(response.body(), matchSource);
+            if (parsed.isEmpty()) {
+                log.warn("n8n shift draft webhook returned an invalid response body");
+            }
+            return parsed;
+        } catch (Exception exception) {
+            log.warn("n8n shift draft webhook call failed: {}", exception.toString());
             return Optional.empty();
         }
     }

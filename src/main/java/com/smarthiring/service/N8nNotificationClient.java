@@ -2,6 +2,8 @@ package com.smarthiring.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthiring.model.Notification;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -16,6 +18,8 @@ import java.util.Map;
 
 @Component
 public class N8nNotificationClient {
+
+    private static final Logger log = LoggerFactory.getLogger(N8nNotificationClient.class);
 
     private final boolean enabled;
     private final String webhookUrl;
@@ -36,7 +40,10 @@ public class N8nNotificationClient {
                 webhookUrl,
                 webhookSecret,
                 publicAppUrl,
-                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build(),
+                HttpClient.newBuilder()
+                        .version(HttpClient.Version.HTTP_1_1)
+                        .connectTimeout(Duration.ofSeconds(3))
+                        .build(),
                 new ObjectMapper().findAndRegisterModules()
         );
     }
@@ -89,8 +96,13 @@ public class N8nNotificationClient {
             }
 
             HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            return response.statusCode() >= 200 && response.statusCode() < 300;
-        } catch (Exception ignored) {
+            boolean succeeded = response.statusCode() >= 200 && response.statusCode() < 300;
+            if (!succeeded) {
+                log.warn("n8n notification webhook returned HTTP {}", response.statusCode());
+            }
+            return succeeded;
+        } catch (Exception exception) {
+            log.warn("n8n notification webhook call failed: {}", exception.toString());
             return false;
         }
     }

@@ -3,6 +3,8 @@ package com.smarthiring.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthiring.dto.MatchRecommendationResponse;
 import com.smarthiring.dto.MatchType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -15,6 +17,8 @@ import java.util.Map;
 import java.util.Optional;
 
 public class N8nMatchingClient implements ExternalMatchingClient {
+
+    private static final Logger log = LoggerFactory.getLogger(N8nMatchingClient.class);
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -48,6 +52,7 @@ public class N8nMatchingClient implements ExternalMatchingClient {
                 webhookSecret,
                 matchSource,
                 HttpClient.newBuilder()
+                        .version(HttpClient.Version.HTTP_1_1)
                         .connectTimeout(Duration.ofSeconds(3))
                         .build()
         );
@@ -112,7 +117,7 @@ public class N8nMatchingClient implements ExternalMatchingClient {
 
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(webhookUrl))
-                    .timeout(Duration.ofSeconds(10))
+                    .timeout(Duration.ofSeconds(45))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)));
 
@@ -122,11 +127,19 @@ public class N8nMatchingClient implements ExternalMatchingClient {
 
             HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("n8n matching webhook returned HTTP {} for {}", response.statusCode(), matchType);
                 return Optional.empty();
             }
 
-            return parser.parse(response.body(), targetId, fallbackScore, matchSource);
-        } catch (Exception ignored) {
+            Optional<MatchRecommendationResponse> parsed = parser.parse(
+                    response.body(), targetId, fallbackScore, matchSource
+            );
+            if (parsed.isEmpty()) {
+                log.warn("n8n matching webhook returned an invalid response body for {}", matchType);
+            }
+            return parsed;
+        } catch (Exception exception) {
+            log.warn("n8n matching webhook call failed for {}: {}", matchType, exception.toString());
             return Optional.empty();
         }
     }
