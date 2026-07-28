@@ -77,7 +77,7 @@ services:
         GENERATE_SOURCEMAP: "false"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost/healthz"]
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/healthz"]
       interval: 20s
       timeout: 5s
       retries: 5
