@@ -130,12 +130,11 @@ Email is enabled for AI job alerts, applications, shift lifecycle changes, payme
 
 ## Troubleshooting
 
-- `source: FALLBACK`: confirm n8n is active, Ollama is running, the model is downloaded, and both webhook secrets match.
+- `source: FALLBACK`: confirm n8n is active, the hosted DeepSeek workflow is published, its DeepSeek credential is selected, and both webhook secrets match.
 - n8n returns 404: publish/activate the workflow and use `/webhook/`, not `/webhook-test/`.
 - Gmail node is disconnected: repeat Google OAuth and select the credential in **Send Gmail**.
 - Gmail OAuth stops after seven days: Google OAuth apps in external testing mode can require reconnection; publish the consent app or reconnect for demonstrations.
 - Notifications appear but emails do not: confirm `N8N_NOTIFICATION_ENABLED=true`, inspect the n8n execution, and check the notification's email status in the database.
-- Hosted n8n cannot call your PC's Ollama: deploy both where they can reach each other, or keep the entire setup local. Do not expose Ollama directly to the public internet.
 
 ## Hosted DeepSeek workflow variants
 

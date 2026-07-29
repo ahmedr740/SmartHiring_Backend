@@ -26,7 +26,7 @@ class ShiftDraftJsonParserTest {
                   "location": "Downtown",
                   "assumptions": "Assumed the upcoming Friday."
                 }
-                """, "OLLAMA");
+                """, "N8N_DEEPSEEK");
 
         assertThat(draft).isPresent();
         assertThat(draft.get().getTitle()).isEqualTo("Friday Night Server");
@@ -34,14 +34,14 @@ class ShiftDraftJsonParserTest {
         assertThat(draft.get().getPay()).isEqualTo(18.5);
         assertThat(draft.get().getDate()).isEqualTo("2026-07-24");
         assertThat(draft.get().getStartTime()).isEqualTo("18:00");
-        assertThat(draft.get().getSource()).isEqualTo("OLLAMA");
+        assertThat(draft.get().getSource()).isEqualTo("N8N_DEEPSEEK");
     }
 
     @Test
-    void unwrapsOllamaResponseWrapper() {
+    void unwrapsNestedResponseWrapper() {
         Optional<ShiftDraftResponse> draft = parser.parse("""
                 {"response": "{\\"title\\":\\"Barista Shift\\",\\"roleNeeded\\":\\"BARISTA\\"}", "done": true}
-                """, "OLLAMA");
+                """, "N8N_DEEPSEEK");
 
         assertThat(draft).isPresent();
         assertThat(draft.get().getTitle()).isEqualTo("Barista Shift");
@@ -58,7 +58,7 @@ class ShiftDraftJsonParserTest {
                   "startTime": "6pm",
                   "pay": -5
                 }
-                """, "OLLAMA");
+                """, "N8N_DEEPSEEK");
 
         assertThat(draft).isPresent();
         assertThat(draft.get().getRoleNeeded()).isEmpty();
@@ -69,7 +69,7 @@ class ShiftDraftJsonParserTest {
 
     @Test
     void returnsEmptyForMalformedJson() {
-        Optional<ShiftDraftResponse> draft = parser.parse("not json at all", "OLLAMA");
+        Optional<ShiftDraftResponse> draft = parser.parse("not json at all", "N8N_DEEPSEEK");
 
         assertThat(draft).isEmpty();
     }

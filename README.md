@@ -6,7 +6,7 @@ HubPin is a group project for a college software/web development course. The ide
 
 Production packaging for a temporary AWS Lightsail deployment is included in `docker-compose.prod.yml`. It runs the frontend, backend, PostgreSQL, n8n 2.26.8, daily backups, and Caddy HTTPS on one 4 GB instance. Follow [the complete Hong Kong deployment, DeepSeek, testing, backup, and teardown guide](docs/deployment/AWS_LIGHTSAIL_HONG_KONG.md).
 
-The production AI source is `N8N_DEEPSEEK`; local Ollama remains supported as `N8N_OLLAMA`, and deterministic scoring remains available as `FALLBACK`.
+All AI features use DeepSeek through protected n8n webhooks. Deterministic scoring remains available as `FALLBACK` when matching is unavailable.
 
 ## What The App Does
 
@@ -85,12 +85,14 @@ export CORS_ALLOWED_ORIGINS=http://localhost:3000
 export ADMIN_SEED_ENABLED=true
 export ADMIN_SEED_EMAIL=admin@example.com
 export ADMIN_SEED_PASSWORD=replace-with-a-secure-password
-export MATCHING_PROVIDER=ollama
-export OLLAMA_MODEL=llama3.2:3b
-export N8N_MATCHING_ENABLED=false
+export MATCHING_ENABLED=true
+export N8N_WORKER_MATCH_WEBHOOK_URL=http://localhost:5678/webhook/staffmatch/worker-shift-match
+export N8N_MANAGER_MATCH_WEBHOOK_URL=http://localhost:5678/webhook/staffmatch/manager-applicant-match
+export N8N_SHIFT_DRAFT_WEBHOOK_URL=http://localhost:5678/webhook/staffmatch/shift-draft
+export N8N_SHIFT_SEARCH_WEBHOOK_URL=http://localhost:5678/webhook/staffmatch/shift-search
 ```
 
-If Ollama is not running, the app still works and uses the built-in deterministic matching fallback.
+DeepSeek credentials are configured only in n8n. If a webhook is unavailable, matching uses the built-in deterministic fallback and the assistant screens retain their manual controls.
 
 ### Database schema
 
@@ -202,58 +204,18 @@ $env:CI='true'
 npm.cmd test -- --watchAll=false --watchman=false
 ```
 
-## Local AI Matching With Ollama (default)
+## DeepSeek AI through n8n
 
-The React app only talks to Spring. Spring calls Ollama on your machine to rank job matches — no paid API key required.
+React calls only the Spring backend. Spring sends task data to protected n8n webhooks, and n8n calls DeepSeek with its server-side credential. The DeepSeek API key is never stored in React or Spring.
 
-1. Install and start [Ollama](https://ollama.com), then pull a small local model:
-
-```bash
-ollama pull llama3.2:3b
-```
-
-2. Make sure Ollama is running on `http://localhost:11434` (default).
-
-3. Start the backend with AI matching enabled (this is the default):
-
-```bash
-export MATCHING_PROVIDER=ollama
-export OLLAMA_MODEL=llama3.2:3b
-./mvnw spring-boot:run
-```
-
-4. Log in as a worker and open **AI Job Match** (`/worker-matches`), or log in as a manager and view applicant scores on the dashboard.
-
-When AI works, match cards show `(AI)` and `source` is `OLLAMA`. If Ollama is off or slow, Spring falls back to built-in scoring and shows `(Fallback)`.
-
-### Optional: n8n + Ollama instead of direct Ollama
-
-If you prefer routing AI through n8n workflows, set `MATCHING_PROVIDER=n8n` and follow `docs/n8n/README.md`.
-
-The n8n package now also includes importable Gmail notification automation and the app includes a persistent notification inbox. See [`docs/n8n/README.md`](docs/n8n/README.md) for the exact Windows setup and workflow import steps.
-
-## Local AI Matching With n8n + Ollama (optional)
-
-This project does not need a paid AI key. React only calls the Spring backend. With `MATCHING_PROVIDER=n8n`, Spring calls local n8n webhooks, and n8n can call Ollama on your own machine.
-
-1. Install and start Ollama, then pull a small local model:
-
-```bash
-ollama pull llama3.2:3b
-```
-
-2. Run n8n locally on `http://localhost:5678`.
-
-3. Import or create four n8n workflows:
+Publish the four hosted DeepSeek workflows documented in [`docs/n8n/README.md`](docs/n8n/README.md):
 
 - worker shift match webhook: `/webhook/staffmatch/worker-shift-match`
 - manager applicant match webhook: `/webhook/staffmatch/manager-applicant-match`
 - manager shift draft webhook: `/webhook/staffmatch/shift-draft`
 - worker shift search webhook: `/webhook/staffmatch/shift-search`
 
-Each workflow should start with a Webhook node, validate the `X-StaffMatch-Webhook-Secret` header, send the sanitized request body to Ollama with an HTTP Request node, normalize the result in a Code node, and return JSON with Respond to Webhook.
-
-Matching responses should include `targetId`, `aiScore`, `fallbackScore`, `label`, `explanation`, `strengths`, `risks`, `recommendedAction`, and `source`. The draft response should contain the structured shift fields, and the search response should contain `interpretation` plus a `matches` array. Use `source: "N8N_OLLAMA"` for local AI responses. If matching is unavailable, Spring uses the built-in score. The two assistants keep their normal manual form/search available when AI is unavailable.
+Every valid AI response is recorded as `N8N_DEEPSEEK`. If DeepSeek or n8n is unavailable, Spring uses the built-in score.
 
 ## Notes About The Project
 
@@ -261,7 +223,7 @@ Matching responses should include `targetId`, `aiScore`, `fallbackScore`, `label
 - We focused more on getting the full flow working than on production-level architecture.
 - Some extra demo/testing flows were kept in because they helped during integration and presentation prep.
 - Demo reset/bootstrap endpoints are no longer publicly usable. Use environment-controlled admin seeding for local setup.
-- AI matching is server-side only. The frontend reads match recommendations from `/api/matches/...` and never talks directly to n8n or Ollama.
+- AI matching is server-side only. The frontend reads match recommendations from `/api/matches/...` and never talks directly to n8n or DeepSeek.
 
 ## Possible Future Improvements
 

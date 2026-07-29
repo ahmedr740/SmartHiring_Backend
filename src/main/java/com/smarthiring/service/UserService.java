@@ -4,8 +4,10 @@ import com.smarthiring.model.User;
 import com.smarthiring.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -19,10 +21,12 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final CvTextExtractor cvTextExtractor;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, CvTextExtractor cvTextExtractor) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.cvTextExtractor = cvTextExtractor;
     }
 
     public User register(User user) {
@@ -70,6 +74,13 @@ public class UserService {
             if (request.getAvailability() != null) {
                 user.setAvailability(cleanOptional(request.getAvailability()));
             }
+            if (request.getExperience() != null) {
+                String experience = cleanOptional(request.getExperience());
+                if (experience != null && experience.length() > 4000) {
+                    throw new ResponseStatusException(BAD_REQUEST, "Work experience must be 4,000 characters or fewer");
+                }
+                user.setExperience(experience);
+            }
         } else if ("MANAGER".equalsIgnoreCase(user.getRole())) {
             if (request.getRestaurantName() != null) {
                 user.setRestaurantName(cleanOptional(request.getRestaurantName()));
@@ -86,6 +97,19 @@ public class UserService {
             throw new ResponseStatusException(FORBIDDEN, "This account cannot update profile details here");
         }
 
+        return userRepository.save(user);
+    }
+
+    public User uploadCurrentWorkerCv(String email, MultipartFile file) {
+        User user = getByEmail(email);
+        if (!"WORKER".equalsIgnoreCase(user.getRole())) {
+            throw new ResponseStatusException(FORBIDDEN, "Only workers can upload a CV");
+        }
+
+        CvTextExtractor.ExtractedCv extractedCv = cvTextExtractor.extract(file);
+        user.setCvFileName(extractedCv.fileName());
+        user.setCvText(extractedCv.text());
+        user.setCvUploadedAt(LocalDateTime.now());
         return userRepository.save(user);
     }
 

@@ -59,7 +59,7 @@ class N8nShiftSearchClientTest {
                 false,
                 "http://localhost:5678/webhook/staffmatch/shift-search",
                 "",
-                "N8N_OLLAMA",
+                "N8N_DEEPSEEK",
                 httpClient
         );
 
@@ -79,7 +79,7 @@ class N8nShiftSearchClientTest {
                 true,
                 "http://localhost:5678/webhook/staffmatch/shift-search",
                 "test-secret",
-                "N8N_OLLAMA",
+                "N8N_DEEPSEEK",
                 httpClient
         );
 

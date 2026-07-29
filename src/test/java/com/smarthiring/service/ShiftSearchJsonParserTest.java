@@ -22,20 +22,20 @@ class ShiftSearchJsonParserTest {
                     {"shiftId": 2, "reason": "Close match on timing"}
                   ]
                 }
-                """, Set.of(1L, 2L, 3L), "OLLAMA");
+                """, Set.of(1L, 2L, 3L), "N8N_DEEPSEEK");
 
         assertThat(result).isPresent();
         assertThat(result.get().getInterpretation()).isEqualTo("Looking for waiter shifts on Friday evening.");
         assertThat(result.get().getMatches()).hasSize(2);
         assertThat(result.get().getMatches().get(0).getShiftId()).isEqualTo(1L);
-        assertThat(result.get().getSource()).isEqualTo("OLLAMA");
+        assertThat(result.get().getSource()).isEqualTo("N8N_DEEPSEEK");
     }
 
     @Test
-    void unwrapsOllamaResponseWrapper() {
+    void unwrapsNestedResponseWrapper() {
         Optional<ShiftSearchResponse> result = parser.parse("""
                 {"response": "{\\"interpretation\\":\\"Barista shifts\\",\\"matches\\":[{\\"shiftId\\":5,\\"reason\\":\\"Barista role\\"}]}", "done": true}
-                """, Set.of(5L), "OLLAMA");
+                """, Set.of(5L), "N8N_DEEPSEEK");
 
         assertThat(result).isPresent();
         assertThat(result.get().getInterpretation()).isEqualTo("Barista shifts");
@@ -47,7 +47,7 @@ class ShiftSearchJsonParserTest {
     void dropsShiftIdsNotInAllowedSet() {
         Optional<ShiftSearchResponse> result = parser.parse("""
                 {"interpretation": "test", "matches": [{"shiftId": 1}, {"shiftId": 999}]}
-                """, Set.of(1L), "OLLAMA");
+                """, Set.of(1L), "N8N_DEEPSEEK");
 
         assertThat(result).isPresent();
         assertThat(result.get().getMatches()).hasSize(1);
@@ -64,7 +64,7 @@ class ShiftSearchJsonParserTest {
         Optional<ShiftSearchResponse> result = parser.parse(
                 "{\"interpretation\": \"test\", \"matches\": [" + matches + ", {\"shiftId\": 2}]}",
                 Set.of(1L, 2L),
-                "OLLAMA"
+                "N8N_DEEPSEEK"
         );
 
         assertThat(result).isPresent();
@@ -83,7 +83,7 @@ class ShiftSearchJsonParserTest {
         Optional<ShiftSearchResponse> result = parser.parse(
                 "{\"interpretation\": \"test\", \"matches\": [" + matches + "]}",
                 allowed,
-                "OLLAMA"
+                "N8N_DEEPSEEK"
         );
 
         assertThat(result).isPresent();
@@ -92,7 +92,7 @@ class ShiftSearchJsonParserTest {
 
     @Test
     void returnsEmptyForMalformedJson() {
-        Optional<ShiftSearchResponse> result = parser.parse("not json", Set.of(1L), "OLLAMA");
+        Optional<ShiftSearchResponse> result = parser.parse("not json", Set.of(1L), "N8N_DEEPSEEK");
 
         assertThat(result).isEmpty();
     }

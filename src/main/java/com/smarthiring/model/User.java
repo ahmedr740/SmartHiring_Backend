@@ -1,6 +1,7 @@
 package com.smarthiring.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -39,6 +40,17 @@ public class User {
     private String location;
 
     private String availability;
+
+    @Column(length = 4000)
+    private String experience;
+
+    private String cvFileName;
+
+    @JsonIgnore
+    @Column(columnDefinition = "TEXT")
+    private String cvText;
+
+    private LocalDateTime cvUploadedAt;
 
     private LocalDateTime createdAt;
 
@@ -91,6 +103,18 @@ public class User {
 
     public String getAvailability() { return availability; }
     public void setAvailability(String availability) { this.availability = availability; }
+
+    public String getExperience() { return experience; }
+    public void setExperience(String experience) { this.experience = experience; }
+
+    public String getCvFileName() { return cvFileName; }
+    public void setCvFileName(String cvFileName) { this.cvFileName = cvFileName; }
+
+    public String getCvText() { return cvText; }
+    public void setCvText(String cvText) { this.cvText = cvText; }
+
+    public LocalDateTime getCvUploadedAt() { return cvUploadedAt; }
+    public void setCvUploadedAt(LocalDateTime cvUploadedAt) { this.cvUploadedAt = cvUploadedAt; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

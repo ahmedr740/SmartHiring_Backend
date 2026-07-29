@@ -35,7 +35,7 @@ public class N8nMatchingClient implements ExternalMatchingClient {
             String managerMatchWebhookUrl,
             String webhookSecret
     ) {
-        this(matchingEnabled, workerMatchWebhookUrl, managerMatchWebhookUrl, webhookSecret, "N8N_OLLAMA");
+        this(matchingEnabled, workerMatchWebhookUrl, managerMatchWebhookUrl, webhookSecret, "N8N_DEEPSEEK");
     }
 
     public N8nMatchingClient(
@@ -65,7 +65,7 @@ public class N8nMatchingClient implements ExternalMatchingClient {
             String webhookSecret,
             HttpClient httpClient
     ) {
-        this(matchingEnabled, workerMatchWebhookUrl, managerMatchWebhookUrl, webhookSecret, "N8N_OLLAMA", httpClient);
+        this(matchingEnabled, workerMatchWebhookUrl, managerMatchWebhookUrl, webhookSecret, "N8N_DEEPSEEK", httpClient);
     }
 
     N8nMatchingClient(
@@ -130,6 +130,10 @@ public class N8nMatchingClient implements ExternalMatchingClient {
                 log.warn("n8n matching webhook returned HTTP {} for {}", response.statusCode(), matchType);
                 return Optional.empty();
             }
+            if (!hasRequiredSource(response.body())) {
+                log.warn("n8n matching webhook did not return the required DeepSeek source for {}", matchType);
+                return Optional.empty();
+            }
 
             Optional<MatchRecommendationResponse> parsed = parser.parse(
                     response.body(), targetId, fallbackScore, matchSource
@@ -152,10 +156,17 @@ public class N8nMatchingClient implements ExternalMatchingClient {
                 && !managerMatchWebhookUrl.isBlank();
     }
 
-    private String normalizeMatchSource(String source) {
-        if ("N8N_DEEPSEEK".equalsIgnoreCase(source)) {
-            return "N8N_DEEPSEEK";
+    private boolean hasRequiredSource(String responseBody) {
+        try {
+            var root = objectMapper.readTree(responseBody);
+            var node = root.isArray() && !root.isEmpty() ? root.get(0) : root;
+            return "N8N_DEEPSEEK".equalsIgnoreCase(node.path("source").asText());
+        } catch (Exception exception) {
+            return false;
         }
-        return "N8N_OLLAMA";
+    }
+
+    private String normalizeMatchSource(String source) {
+        return "N8N_DEEPSEEK";
     }
 }

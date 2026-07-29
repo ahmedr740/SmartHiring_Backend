@@ -1,0 +1,4 @@
+ALTER TABLE users ADD COLUMN experience VARCHAR(4000);
+ALTER TABLE users ADD COLUMN cv_file_name VARCHAR(255);
+ALTER TABLE users ADD COLUMN cv_text TEXT;
+ALTER TABLE users ADD COLUMN cv_uploaded_at TIMESTAMP;

@@ -87,7 +87,7 @@ class ShiftSearchServiceTest {
                 "Waiter shifts Friday night",
                 List.of(new ShiftSearchMatch(7L, "Matches role and timing")),
                 null,
-                "OLLAMA"
+                "N8N_DEEPSEEK"
         );
         when(client.searchShifts(anyString(), anyString(), anySet())).thenReturn(Optional.of(expected));
 

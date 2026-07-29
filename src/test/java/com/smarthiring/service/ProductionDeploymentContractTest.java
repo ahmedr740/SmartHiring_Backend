@@ -14,11 +14,12 @@ class ProductionDeploymentContractTest {
         String compose = Files.readString(Path.of("docker-compose.prod.yml"));
 
         assertThat(compose)
-                .contains("MATCHING_PROVIDER: n8n")
+                .contains("MATCHING_ENABLED: \"true\"")
                 .contains("N8N_WORKER_MATCH_WEBHOOK_URL: http://n8n:5678/webhook/staffmatch/worker-shift-match")
                 .contains("N8N_MANAGER_MATCH_WEBHOOK_URL: http://n8n:5678/webhook/staffmatch/manager-applicant-match")
                 .contains("N8N_SHIFT_DRAFT_WEBHOOK_URL: http://n8n:5678/webhook/staffmatch/shift-draft")
                 .contains("N8N_SHIFT_SEARCH_WEBHOOK_URL: http://n8n:5678/webhook/staffmatch/shift-search")
+                .doesNotContain("OLLAMA")
                 .doesNotContain("N8N_SHIFT_DRAFT_WEBHOOK_URL: http://localhost")
                 .doesNotContain("N8N_SHIFT_SEARCH_WEBHOOK_URL: http://localhost");
     }

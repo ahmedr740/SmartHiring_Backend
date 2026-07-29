@@ -62,7 +62,7 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers("/api/auth/reset-demo-data", "/api/auth/bootstrap-admin").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/users/me").authenticated()
+                        .requestMatchers("/api/users/me", "/api/users/me/**").authenticated()
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
                         .requestMatchers("/api/shifts/**").authenticated()
                         .requestMatchers("/api/applications/**").authenticated()

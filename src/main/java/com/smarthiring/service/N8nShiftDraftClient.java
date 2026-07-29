@@ -87,6 +87,10 @@ public class N8nShiftDraftClient implements ExternalShiftDraftClient {
                 log.warn("n8n shift draft webhook returned HTTP {}", response.statusCode());
                 return Optional.empty();
             }
+            if (!hasRequiredSource(response.body())) {
+                log.warn("n8n shift draft webhook did not return the required DeepSeek source");
+                return Optional.empty();
+            }
 
             Optional<ShiftDraftResponse> parsed = parser.parse(response.body(), matchSource);
             if (parsed.isEmpty()) {
@@ -103,10 +107,17 @@ public class N8nShiftDraftClient implements ExternalShiftDraftClient {
         return enabled && webhookUrl != null && !webhookUrl.isBlank();
     }
 
-    private String normalizeMatchSource(String source) {
-        if ("N8N_DEEPSEEK".equalsIgnoreCase(source)) {
-            return "N8N_DEEPSEEK";
+    private boolean hasRequiredSource(String responseBody) {
+        try {
+            var root = objectMapper.readTree(responseBody);
+            var node = root.isArray() && !root.isEmpty() ? root.get(0) : root;
+            return "N8N_DEEPSEEK".equalsIgnoreCase(node.path("source").asText());
+        } catch (Exception exception) {
+            return false;
         }
-        return "N8N_OLLAMA";
+    }
+
+    private String normalizeMatchSource(String source) {
+        return "N8N_DEEPSEEK";
     }
 }

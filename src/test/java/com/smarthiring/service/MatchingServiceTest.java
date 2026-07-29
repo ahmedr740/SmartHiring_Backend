@@ -65,7 +65,7 @@ class MatchingServiceTest {
                 List.of("Confirm availability"),
                 "Invite the worker to apply.",
                 LocalDateTime.now(),
-                "N8N_OLLAMA"
+                "N8N_DEEPSEEK"
         );
 
         when(shiftRepository.findAll()).thenReturn(List.of(shift));
@@ -76,7 +76,7 @@ class MatchingServiceTest {
 
         List<MatchRecommendationResponse> recommendations = matchingService.getWorkerShiftMatches(worker);
 
-        assertThat(recommendations.get(0).getSource()).isEqualTo("N8N_OLLAMA");
+        assertThat(recommendations.get(0).getSource()).isEqualTo("N8N_DEEPSEEK");
         assertThat(recommendations.get(0).getAiScore()).isEqualTo(91);
         assertThat(recommendations.get(0).getRank()).isEqualTo(1);
     }
@@ -100,6 +100,49 @@ class MatchingServiceTest {
                         && !prompt.contains("Ava Worker")
                         && !prompt.contains("Manager 100")
         ), anyLong(), anyInt(), eq(MatchType.WORKER_SHIFT));
+    }
+
+    @Test
+    void sendsWorkerExperienceAndCvTextToAiMatching() {
+        User worker = worker();
+        worker.setExperience("Three years of busy dinner service");
+        worker.setCvText("Managed POS orders and trained new waiters");
+        Shift shift = shift();
+        shift.setDescription("Serve a busy private dining floor");
+        shift.setRequirements("One year of table service experience preferred");
+
+        when(shiftRepository.findAll()).thenReturn(List.of(shift));
+        when(cacheRepository.findByCacheKey(anyString())).thenReturn(Optional.empty());
+        when(externalMatchingClient.scoreMatch(anyString(), anyString(), anyLong(), anyInt(), any(MatchType.class)))
+                .thenReturn(Optional.empty());
+
+        matchingService.getWorkerShiftMatches(worker);
+
+        verify(externalMatchingClient).scoreMatch(anyString(), argThat(prompt ->
+                prompt.contains("Three years of busy dinner service")
+                        && prompt.contains("Managed POS orders and trained new waiters")
+                        && prompt.contains("Serve a busy private dining floor")
+                        && prompt.contains("One year of table service experience preferred")
+        ), eq(shift.getId()), anyInt(), eq(MatchType.WORKER_SHIFT));
+    }
+
+    @Test
+    void changesCacheKeyWhenWorkerCvChanges() {
+        User worker = worker();
+        Shift shift = shift();
+        when(shiftRepository.findAll()).thenReturn(List.of(shift));
+        when(cacheRepository.findByCacheKey(anyString())).thenReturn(Optional.empty());
+        when(externalMatchingClient.scoreMatch(anyString(), anyString(), anyLong(), anyInt(), any(MatchType.class)))
+                .thenReturn(Optional.empty());
+
+        worker.setCvText("Waiter experience");
+        matchingService.getWorkerShiftMatches(worker);
+        worker.setCvText("Chef experience");
+        matchingService.getWorkerShiftMatches(worker);
+
+        var cacheKeys = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(cacheRepository, times(2)).findByCacheKey(cacheKeys.capture());
+        assertThat(cacheKeys.getAllValues().get(0)).isNotEqualTo(cacheKeys.getAllValues().get(1));
     }
 
     @Test

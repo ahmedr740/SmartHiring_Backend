@@ -19,7 +19,7 @@ import static org.mockito.Mockito.when;
 class N8nMatchingClientTest {
 
     @Test
-    void returnsN8nOllamaRecommendationFromWebhookResponse() throws Exception {
+    void returnsDeepSeekRecommendationFromWebhookResponse() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mockResponse(200, """
                 {
@@ -27,11 +27,11 @@ class N8nMatchingClientTest {
                   "aiScore": 88,
                   "fallbackScore": 75,
                   "label": "Strong match",
-                  "explanation": "Local Ollama found strong skill and location alignment.",
+                  "explanation": "DeepSeek found strong skill and location alignment.",
                   "strengths": ["Waiter skills", "Central location"],
                   "risks": ["Confirm availability"],
                   "recommendedAction": "Invite the worker to apply.",
-                  "source": "N8N_OLLAMA"
+                  "source": "N8N_DEEPSEEK"
                 }
                 """);
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
@@ -52,7 +52,7 @@ class N8nMatchingClientTest {
         );
 
         assertThat(recommendation).isPresent();
-        assertThat(recommendation.get().getSource()).isEqualTo("N8N_OLLAMA");
+        assertThat(recommendation.get().getSource()).isEqualTo("N8N_DEEPSEEK");
         assertThat(recommendation.get().getAiScore()).isEqualTo(88);
         assertThat(recommendation.get().getStrengths()).contains("Waiter skills");
         verify(httpClient).send(
@@ -115,7 +115,7 @@ class N8nMatchingClientTest {
     @Test
     void managerMatchTypeUsesManagerWebhook() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        HttpResponse<String> response = mockResponse(200, "{\"targetId\":10,\"aiScore\":80}");
+        HttpResponse<String> response = mockResponse(200, "{\"targetId\":10,\"aiScore\":80,\"source\":\"N8N_DEEPSEEK\"}");
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(response);
         N8nMatchingClient client = new N8nMatchingClient(
@@ -144,7 +144,7 @@ class N8nMatchingClientTest {
     }
 
     @Test
-    void usesConfiguredDeepSeekSourceInsteadOfTrustingWebhookSource() throws Exception {
+    void rejectsWebhookResponseThatIsNotFromDeepSeek() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<String> response = mockResponse(200, "{\"targetId\":10,\"aiScore\":86,\"source\":\"UNTRUSTED\"}");
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
@@ -165,8 +165,7 @@ class N8nMatchingClientTest {
                 MatchType.WORKER_SHIFT
         );
 
-        assertThat(recommendation).isPresent();
-        assertThat(recommendation.get().getSource()).isEqualTo("N8N_DEEPSEEK");
+        assertThat(recommendation).isEmpty();
     }
 
     private HttpResponse<String> mockResponse(int status, String body) {

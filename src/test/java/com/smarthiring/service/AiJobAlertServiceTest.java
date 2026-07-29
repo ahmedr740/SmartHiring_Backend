@@ -42,7 +42,7 @@ class AiJobAlertServiceTest {
                 .thenReturn(List.of(worker));
         when(matchingService.recommendWorkerShift(worker, shift)).thenReturn(new MatchRecommendationResponse(
                 10L, null, 88, 70, "Strong match", "Strong fit",
-                List.of("Skills"), List.of(), "Apply", LocalDateTime.now(), "N8N_OLLAMA"
+                List.of("Skills"), List.of(), "Apply", LocalDateTime.now(), "N8N_DEEPSEEK"
         ));
 
         service.scanNewShift(10L);

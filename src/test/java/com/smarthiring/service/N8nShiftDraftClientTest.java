@@ -67,7 +67,7 @@ class N8nShiftDraftClientTest {
                 false,
                 "http://localhost:5678/webhook/staffmatch/shift-draft",
                 "",
-                "N8N_OLLAMA",
+                "N8N_DEEPSEEK",
                 httpClient
         );
 
@@ -87,7 +87,7 @@ class N8nShiftDraftClientTest {
                 true,
                 "http://localhost:5678/webhook/staffmatch/shift-draft",
                 "test-secret",
-                "N8N_OLLAMA",
+                "N8N_DEEPSEEK",
                 httpClient
         );
 
